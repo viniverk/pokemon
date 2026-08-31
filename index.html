@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Registro de cartas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#10131f;
+  --slab:#191e30;
+  --slab-hi:#212840;
+  --edge:#2c3350;
+  --paper:#e9ebf3;
+  --muted:#8791ae;
+  --gain:#4fd1a5;
+  --loss:#ff6f6f;
+  --holo:linear-gradient(100deg,#7cf5d5,#8ab6ff,#c79bff,#ff9bc7,#ffd98a);
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:"Archivo",system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-weight:800;letter-spacing:-.02em;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- app bar ---------- */
+.bar{
+  position:sticky;top:0;z-index:40;
+  background:rgba(16,19,31,.92);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--edge);
+}
+.bar-holo{height:3px;background:var(--holo)}
+.bar-in{
+  max-width:1120px;margin:0 auto;padding:14px 20px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.bar h1{font-size:19px}
+.bar .mode{
+  font-size:12px;color:var(--muted);
+  border:1px solid var(--edge);border-radius:99px;padding:2px 10px;
+}
+.bar .spacer{flex:1}
+.bar button{background:none;border:1px solid var(--edge);border-radius:8px;padding:7px 12px;color:var(--muted);cursor:pointer}
+.bar button:hover{color:var(--paper);border-color:#3d466d}
+
+.wrap{max-width:1120px;margin:0 auto;padding:24px 20px 96px}
+
+/* ---------- posição ---------- */
+.pos{margin-bottom:28px}
+.pos-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.pos-head h2{font-size:15px;font-weight:600;color:var(--muted)}
+.pos-res{font-size:15px;font-weight:600}
+.track{
+  height:34px;border-radius:6px;overflow:hidden;
+  background:var(--slab);border:1px solid var(--edge);
+  display:flex;
+}
+.track .base{background:#39415f;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.track .up{background:var(--holo);transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.track .down{
+  background:repeating-linear-gradient(-45deg,rgba(255,111,111,.75) 0 6px,rgba(255,111,111,.35) 6px 12px);
+  transition:width .8s cubic-bezier(.2,.8,.2,1);
+}
+.legend{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend b{display:block;color:var(--paper);font-size:17px;font-weight:600}
+
+/* ---------- abas ---------- */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--edge);margin-bottom:16px;overflow-x:auto}
+.tabs button{
+  background:none;border:0;border-bottom:2px solid transparent;
+  padding:10px 14px;color:var(--muted);cursor:pointer;white-space:nowrap;
+}
+.tabs button[aria-selected="true"]{color:var(--paper);border-bottom-color:#8ab6ff}
+.tabs .count{color:var(--muted);font-size:12px;margin-left:5px}
+
+/* ---------- barra de ferramentas ---------- */
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tools input[type=search],.tools select{
+  background:var(--slab);border:1px solid var(--edge);border-radius:8px;padding:8px 11px;
+}
+.tools input[type=search]{flex:1;min-width:180px}
+.tools select{color:var(--paper)}
+.add{
+  background:var(--paper);color:var(--ink);border:0;border-radius:8px;
+  padding:8px 16px;font-weight:600;cursor:pointer;
+}
+.add:hover{background:#fff}
+
+/* ---------- lista ---------- */
+.rows{border-top:1px solid var(--edge)}
+.row{
+  display:grid;
+  grid-template-columns:3px minmax(0,1fr) auto;
+  gap:0 14px;align-items:center;
+  border-bottom:1px solid var(--edge);
+  padding:0;
+}
+.row .flag{align-self:stretch;border-radius:2px;margin:8px 0}
+.flag.acervo{background:var(--holo)}
+.flag.giro{background:#8ab6ff}
+.flag.bulk{background:#39415f}
+.row .main{padding:12px 0;min-width:0}
+.row .title{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row .meta{color:var(--muted);font-size:13px;margin-top:2px}
+.chip{
+  font-size:11px;border:1px solid var(--edge);border-radius:5px;
+  padding:1px 6px;color:var(--muted);font-weight:500;
+}
+.chip.slab{border-color:#6b5cff;color:#b3a8ff}
+.chip.stale{border-color:#7a5a2a;color:#e0a95c}
+.row .money{padding:12px 0;text-align:right;white-space:nowrap}
+.row .mv{font-weight:600}
+.row .delta{font-size:13px}
+.up-t{color:var(--gain)}
+.down-t{color:var(--loss)}
+.row .acts{display:flex;gap:6px;justify-content:flex-end;margin-top:4px}
+.row .acts button{
+  background:none;border:1px solid var(--edge);border-radius:6px;
+  font-size:12px;padding:2px 8px;color:var(--muted);cursor:pointer;
+}
+.row .acts button:hover{color:var(--paper);border-color:#3d466d}
+
+.empty{padding:56px 4px;color:var(--muted);max-width:52ch}
+.empty h3{font-size:20px;color:var(--paper);margin-bottom:8px}
+
+/* ---------- cotação ---------- */
+.quote-row{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border-bottom:1px solid var(--edge);padding:11px 0;
+}
+.quote-row .qn{flex:1;min-width:160px}
+.quote-row input{
+  width:120px;background:var(--slab);border:1px solid var(--edge);
+  border-radius:7px;padding:6px 10px;text-align:right;
+}
+
+/* ---------- resumo ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px}
+.brk h3{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:10px}
+.brk table{width:100%;border-collapse:collapse}
+.brk td{padding:7px 0;border-bottom:1px solid var(--edge);font-size:14px}
+.brk td:last-child{text-align:right}
+.brk td.lbl{color:var(--muted)}
+
+/* ---------- painel ---------- */
+.scrim{position:fixed;inset:0;background:rgba(8,10,18,.7);z-index:50;display:none}
+.scrim.on{display:block}
+.panel{
+  position:fixed;z-index:60;background:var(--slab);
+  top:0;right:0;bottom:0;width:min(460px,100%);
+  border-left:1px solid var(--edge);
+  overflow-y:auto;display:none;
+  transform:translateX(100%);transition:transform .25s ease;
+}
+.panel.on{display:block;transform:translateX(0)}
+.panel-in{padding:22px}
+.panel h2{font-size:20px;margin-bottom:2px}
+.panel .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+fieldset{border:0;border-top:1px solid var(--edge);padding:16px 0 0;margin:0 0 18px}
+legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
+.f{margin-bottom:13px}
+.f label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}
+.f input,.f select,.f textarea{
+  width:100%;background:var(--ink);border:1px solid var(--edge);
+  border-radius:8px;padding:9px 11px;
+}
+.f input:focus,.f select:focus,.f textarea:focus,.tools input:focus,.quote-row input:focus{
+  outline:2px solid #8ab6ff;outline-offset:1px;border-color:transparent;
+}
+.f textarea{resize:vertical;min-height:64px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{font-size:12px;color:var(--muted);margin-top:5px}
+.panel-foot{display:flex;gap:10px;padding-top:6px}
+.panel-foot .save{flex:1;background:var(--paper);color:var(--ink);border:0;border-radius:8px;padding:11px;font-weight:600;cursor:pointer}
+.panel-foot .cancel{background:none;border:1px solid var(--edge);border-radius:8px;padding:11px 18px;color:var(--muted);cursor:pointer}
+.danger{background:none;border:1px solid #5c2b2b;color:#ff9a9a;border-radius:8px;padding:9px 14px;cursor:pointer;width:100%;margin-top:4px}
+
+.toast{
+  position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+  background:var(--slab-hi);border:1px solid var(--edge);border-radius:9px;
+  padding:11px 18px;z-index:80;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.toast.on{opacity:1}
+
+@media (max-width:640px){
+  .wrap{padding:18px 14px 88px}
+  .row{grid-template-columns:3px minmax(0,1fr)}
+  .row .money{grid-column:2;text-align:left;padding:0 0 12px}
+  .row .acts{justify-content:flex-start}
+  .legend{gap:16px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-holo"></div>
+  <div class="bar-in">
+    <h1>Registro de cartas</h1>
+    <span class="mode" id="mode"></span>
+    <span class="spacer"></span>
+    <button id="btnExport">Exportar CSV</button>
+    <button id="btnBackup">Backup</button>
+    <button id="btnRestore">Restaurar</button>
+    <input type="file" id="fileIn" accept="application/json" hidden>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="pos">
+    <div class="pos-head">
+      <h2>Posição do acervo</h2>
+      <span class="pos-res num" id="posRes"></span>
+    </div>
+    <div class="track" id="track">
+      <div class="base" style="width:0"></div>
+      <div class="up" style="width:0"></div>
+      <div class="down" style="width:0"></div>
+    </div>
+    <div class="legend">
+      <span>Investido<b class="num" id="kCusto">—</b></span>
+      <span>Valor de mercado<b class="num" id="kMerc">—</b></span>
+      <span>Líquido se vender hoje<b class="num" id="kLiq">—</b></span>
+      <span>Realizado em vendas<b class="num" id="kReal">—</b></span>
+    </div>
+  </section>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="avulsa" aria-selected="true">Avulsas <span class="count" id="cAvulsa"></span></button>
+    <button data-tab="lacrado" aria-selected="false">Lacrado <span class="count" id="cLacrado"></span></button>
+    <button data-tab="cotacao" aria-selected="false">Cotação</button>
+    <button data-tab="vendas" aria-selected="false">Vendas <span class="count" id="cVendas"></span></button>
+    <button data-tab="resumo" aria-selected="false">Resumo</button>
+  </nav>
+
+  <div class="tools" id="tools">
+    <input type="search" id="busca" placeholder="Buscar por nome, coleção ou número">
+    <select id="fIdioma">
+      <option value="">Todos os idiomas</option>
+      <option value="PT">PT-BR</option><option value="EN">EN</option><option value="JP">JP</option>
+    </select>
+    <select id="fBalde">
+      <option value="">Todos os grupos</option>
+      <option value="acervo">Acervo</option><option value="giro">Giro</option><option value="bulk">Bulk</option>
+    </select>
+    <select id="fOrd">
+      <option value="valor">Maior valor</option>
+      <option value="lucro">Maior ganho %</option>
+      <option value="recente">Compra recente</option>
+      <option value="nome">Nome</option>
+    </select>
+    <button class="add" id="btnAdd">Adicionar</button>
+  </div>
+
+  <div id="conteudo"></div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+
+<aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+  <div class="panel-in">
+    <h2 id="panelTitle">Nova entrada</h2>
+    <p class="sub" id="panelSub">Um registro por carta ou por lote idêntico.</p>
+
+    <fieldset>
+      <legend>Identificação</legend>
+      <div class="f">
+        <label for="fTipo">Tipo</label>
+        <select id="fTipo">
+          <option value="avulsa">Carta avulsa</option>
+          <option value="lacrado">Produto lacrado</option>
+        </select>
+      </div>
+      <div class="f"><label for="fNome">Nome</label><input id="fNome" placeholder="Charizard ex"></div>
+      <div class="f2">
+        <div class="f"><label for="fSet">Coleção</label><input id="fSet" placeholder="Obsidian Flames"></div>
+        <div class="f"><label for="fNum">Número</label><input id="fNum" placeholder="223/197"></div>
+      </div>
+      <div class="f2">
+        <div class="f"><label for="fIdi">Idioma</label>
+          <select id="fIdi"><option value="PT">PT-BR</option><option value="EN">EN</option><option value="JP">JP</option></select>
+        </div>
+        <div class="f"><label for="fQtd">Quantidade</label><input id="fQtd" type="number" min="1" step="1" value="1"></div>
+      </div>
+      <div class="f2" id="camposAvulsa">
+        <div class="f"><label for="fRar">Raridade</label>
+          <select id="fRar">
+            <option>Comum</option><option>Incomum</option><option>Holo</option><option>Reverse</option>
+            <option>V / ex</option><option>Full Art</option><option>Alt Art</option>
+            <option>Special Illustration</option><option>Ouro / Hyper</option><option>Promo</option>
+          </select>
+        </div>
+        <div class="f"><label for="fCond">Condição</label>
+          <select id="fCond">
+            <option value="NM">NM — como nova</option><option value="LP">LP — pouco uso</option>
+            <option value="MP">MP — uso moderado</option><option value="HP">HP — muito uso</option>
+            <option value="DMG">DMG — danificada</option>
+          </select>
+        </div>
+      </div>
+      <div class="f2" id="camposGrad">
+        <div class="f"><label for="fGradE">Gradeadora</label>
+          <select id="fGradE"><option value="">Não gradeada</option><option>PSA</option><option>CGC</option><option>Beckett</option><option>SGC</option></select>
+        </div>
+        <div class="f"><label for="fGradN">Nota</label><input id="fGradN" placeholder="10"></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Compra</legend>
+      <div class="f2">
+        <div class="f"><label for="fPreco">Preço pago por unidade (R$)</label><input id="fPreco" type="number" min="0" step="0.01"></div>
+        <div class="f"><label for="fData">Data</label><input id="fData" type="date"></div>
+      </div>
+      <div class="f"><label for="fFonte">Onde comprou</label><input id="fFonte" placeholder="Loja, Mercado Livre, troca"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Mercado</legend>
+      <div class="f2">
+        <div class="f"><label for="fMerc">Valor de mercado por unidade (R$)</label><input id="fMerc" type="number" min="0" step="0.01"></div>
+        <div class="f"><label for="fCot">Consultado em</label><input id="fCot" type="date"></div>
+      </div>
+      <p class="hint">Ligamagic e Liga Pokémon para o mercado nacional, TCGPlayer e Cardmarket para o exterior.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Guarda</legend>
+      <div class="f2">
+        <div class="f"><label for="fBal">Grupo</label>
+          <select id="fBal">
+            <option value="acervo">Acervo — segurar anos</option>
+            <option value="giro">Giro — revender</option>
+            <option value="bulk">Bulk — lote</option>
+          </select>
+        </div>
+        <div class="f"><label for="fLocal">Onde está</label><input id="fLocal" placeholder="Binder 1, p. 4"></div>
+      </div>
+      <div class="f"><label for="fObs">Observações</label><textarea id="fObs" placeholder="Marca no verso, canto branco, comprado em lote com outras 3"></textarea></div>
+    </fieldset>
+
+    <fieldset id="fsVenda">
+      <legend>Venda</legend>
+      <div class="f">
+        <label for="fStatus">Situação</label>
+        <select id="fStatus"><option value="ativo">Em carteira</option><option value="vendido">Vendida</option></select>
+      </div>
+      <div id="camposVenda" hidden>
+        <div class="f2">
+          <div class="f"><label for="fVPreco">Preço de venda total (R$)</label><input id="fVPreco" type="number" min="0" step="0.01"></div>
+          <div class="f"><label for="fVData">Data da venda</label><input id="fVData" type="date"></div>
+        </div>
+        <div class="f2">
+          <div class="f"><label for="fVTaxa">Taxa do marketplace (%)</label><input id="fVTaxa" type="number" min="0" step="0.1" value="13"></div>
+          <div class="f"><label for="fVFrete">Frete pago por você (R$)</label><input id="fVFrete" type="number" min="0" step="0.01" value="0"></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <div class="panel-foot">
+      <button class="save" id="btnSalvar">Salvar</button>
+      <button class="cancel" id="btnCancelar">Cancelar</button>
+    </div>
+    <button class="danger" id="btnExcluir" hidden>Excluir registro</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+/* =========================================================
+   1. CONFIGURAÇÃO — cole aqui os dados do seu projeto Firebase
+   ========================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "COLE_AQUI",
+  authDomain: "COLE_AQUI",
+  projectId: "COLE_AQUI",
+  storageBucket: "COLE_AQUI",
+  messagingSenderId: "COLE_AQUI",
+  appId: "COLE_AQUI"
+};
+const COLECAO   = "tcg_itens";  // nome da coleção no Firestore
+const TAXA_PAD  = 13;           // taxa média de marketplace, em %
+const VALIDADE_COTACAO = 90;    // dias até a cotação ser marcada como velha
+
+/* ========================================================= */
+
+const BRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
+const money = v => BRL.format(Number(v)||0);
+const $ = id => document.getElementById(id);
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let db = null, demo = false, itens = [], aba = "avulsa", editando = null;
+
+/* ---------- conexão ---------- */
+if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
+  demo = true;
+  $("mode").textContent = "modo demonstração";
+  itens = amostras();
+  render();
+} else {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    $("mode").textContent = "sincronizado";
+    db.collection(COLECAO).onSnapshot(
+      snap => { itens = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
+      err => { $("mode").textContent = "sem conexão"; console.error(err); toast("Não consegui ler o Firestore. Confira as regras de acesso."); }
+    );
+  } catch (e) {
+    demo = true;
+    $("mode").textContent = "modo demonstração";
+    itens = amostras();
+    render();
+    console.error(e);
+  }
+}
+
+function amostras(){
+  const hoje = new Date().toISOString().slice(0,10);
+  return [
+    {id:"d1",tipo:"avulsa",nome:"Charizard ex",set:"Obsidian Flames",numero:"223/197",idioma:"EN",raridade:"Special Illustration",condicao:"NM",qtd:1,precoPago:890,dataCompra:"2025-11-02",fonte:"Loja física",valorMercado:1150,dataCotacao:hoje,balde:"acervo",local:"Cofre",status:"ativo",gradEmpresa:"PSA",gradNota:"10"},
+    {id:"d2",tipo:"avulsa",nome:"Pikachu com Grey Felt Hat",set:"Promo",numero:"SVP-085",idioma:"JP",raridade:"Promo",condicao:"NM",qtd:2,precoPago:60,dataCompra:"2026-01-18",fonte:"Mercado Livre",valorMercado:95,dataCotacao:hoje,balde:"giro",local:"Toploader, caixa A",status:"ativo"},
+    {id:"d3",tipo:"lacrado",nome:"Elite Trainer Box",set:"Fenda Paradoxal",numero:"",idioma:"PT",qtd:1,precoPago:320,dataCompra:"2026-03-05",fonte:"Loja física",valorMercado:295,dataCotacao:hoje,balde:"acervo",local:"Prateleira",status:"ativo"},
+    {id:"d4",tipo:"avulsa",nome:"Mew ex",set:"151",numero:"205/165",idioma:"PT",raridade:"Alt Art",condicao:"LP",qtd:1,precoPago:210,dataCompra:"2025-08-14",fonte:"Troca",valorMercado:340,dataCotacao:"2025-09-01",balde:"giro",local:"Binder 1, p. 12",status:"vendido",vPreco:340,vData:"2026-02-10",vTaxa:13,vFrete:22}
+  ];
+}
+
+/* ---------- cálculos ---------- */
+const custo   = i => (Number(i.precoPago)||0) * (Number(i.qtd)||1);
+const mercado = i => (Number(i.valorMercado)||0) * (Number(i.qtd)||1);
+const liquido = i => mercado(i) * (1 - TAXA_PAD/100);
+const realiza = i => (Number(i.vPreco)||0) * (1 - (Number(i.vTaxa)||0)/100) - (Number(i.vFrete)||0) - custo(i);
+const velha = i => {
+  if (!i.dataCotacao) return true;
+  return (Date.now() - new Date(i.dataCotacao+"T00:00:00").getTime()) / 86400000 > VALIDADE_COTACAO;
+};
+
+/* ---------- render ---------- */
+function render(){
+  const ativos = itens.filter(i => i.status !== "vendido");
+  const vendidos = itens.filter(i => i.status === "vendido");
+
+  const C = ativos.reduce((s,i)=>s+custo(i),0);
+  const M = ativos.reduce((s,i)=>s+mercado(i),0);
+  const L = ativos.reduce((s,i)=>s+liquido(i),0);
+  const R = vendidos.reduce((s,i)=>s+realiza(i),0);
+
+  const max = Math.max(C,M,1);
+  const t = $("track");
+  t.querySelector(".base").style.width = (Math.min(C,M)/max*100)+"%";
+  t.querySelector(".up").style.width   = (M>C ? (M-C)/max*100 : 0)+"%";
+  t.querySelector(".down").style.width = (M<C ? (C-M)/max*100 : 0)+"%";
+
+  const d = M - C, pct = C ? (d/C*100) : 0;
+  const pr = $("posRes");
+  pr.textContent = (d>=0?"+":"") + money(d) + "  ·  " + (d>=0?"+":"") + pct.toFixed(1) + "%";
+  pr.className = "pos-res num " + (d>=0 ? "up-t" : "down-t");
+
+  $("kCusto").textContent = money(C);
+  $("kMerc").textContent  = money(M);
+  $("kLiq").textContent   = money(L);
+  $("kReal").textContent  = money(R);
+  $("kReal").className = "num " + (R>=0 ? "up-t" : "down-t");
+
+  $("cAvulsa").textContent  = ativos.filter(i=>i.tipo==="avulsa").reduce((s,i)=>s+(Number(i.qtd)||1),0);
+  $("cLacrado").textContent = ativos.filter(i=>i.tipo==="lacrado").reduce((s,i)=>s+(Number(i.qtd)||1),0);
+  $("cVendas").textContent  = vendidos.length;
+
+  $("tools").style.display = (aba==="resumo") ? "none" : "flex";
+
+  if (aba === "resumo")  return renderResumo(ativos, vendidos);
+  if (aba === "cotacao") return renderCotacao(ativos);
+  if (aba === "vendas")  return renderLista(vendidos, true);
+  renderLista(ativos.filter(i => (i.tipo||"avulsa") === aba), false);
+}
+
+function filtrar(lista){
+  const q = $("busca").value.trim().toLowerCase();
+  const fi = $("fIdioma").value, fb = $("fBalde").value, ord = $("fOrd").value;
+  let r = lista.filter(i => {
+    if (fi && i.idioma !== fi) return false;
+    if (fb && i.balde !== fb) return false;
+    if (!q) return true;
+    return [i.nome,i.set,i.numero,i.local,i.obs].join(" ").toLowerCase().includes(q);
+  });
+  const cmp = {
+    valor:  (a,b) => mercado(b) - mercado(a),
+    lucro:  (a,b) => (custo(b)?(mercado(b)-custo(b))/custo(b):0) - (custo(a)?(mercado(a)-custo(a))/custo(a):0),
+    recente:(a,b) => String(b.dataCompra||"").localeCompare(String(a.dataCompra||"")),
+    nome:   (a,b) => String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
+  }[ord];
+  return r.sort(cmp);
+}
+
+function renderLista(lista, vendaView){
+  const r = filtrar(lista);
+  if (!r.length) return vazio(vendaView);
+
+  $("conteudo").innerHTML = '<div class="rows">' + r.map(i => {
+    const c = custo(i), m = vendaView ? (Number(i.vPreco)||0) : mercado(i);
+    const dv = vendaView ? realiza(i) : m - c;
+    const pct = c ? (dv/c*100) : 0;
+    const cls = dv >= 0 ? "up-t" : "down-t";
+    const q = Number(i.qtd)||1;
+
+    const meta = [
+      i.set, i.numero, i.idioma,
+      i.tipo === "avulsa" ? i.condicao : null,
+      q > 1 ? q+" un." : null,
+      i.local
+    ].filter(Boolean).map(esc).join(" · ");
+
+    const chips = [];
+    if (i.gradEmpresa) chips.push('<span class="chip slab">'+esc(i.gradEmpresa)+" "+esc(i.gradNota||"")+"</span>");
+    if (i.raridade && i.raridade !== "Comum") chips.push('<span class="chip">'+esc(i.raridade)+"</span>");
+    if (!vendaView && velha(i)) chips.push('<span class="chip stale">cotação antiga</span>');
+
+    return `
+    <div class="row">
+      <div class="flag ${esc(i.balde||"giro")}"></div>
+      <div class="main">
+        <div class="title">${esc(i.nome||"Sem nome")} ${chips.join(" ")}</div>
+        <div class="meta">${meta}</div>
+      </div>
+      <div class="money">
+        <div class="mv num">${money(m)}</div>
+        <div class="delta num ${cls}">${dv>=0?"+":""}${money(dv)} · ${dv>=0?"+":""}${pct.toFixed(0)}%</div>
+        <div class="acts">
+          <button data-edit="${i.id}">Editar</button>
+          ${vendaView ? "" : '<button data-sell="'+i.id+'">Vender</button>'}
+        </div>
+      </div>
+    </div>`;
+  }).join("") + "</div>";
+}
+
+function vazio(vendaView){
+  $("conteudo").innerHTML = vendaView
+    ? `<div class="empty"><h3>Nenhuma venda registrada</h3><p>Quando vender uma carta, use o botão Vender na linha dela. O resultado líquido entra no total realizado, já descontando taxa e frete.</p></div>`
+    : `<div class="empty"><h3>Nada por aqui ainda</h3><p>Comece pelas cartas de maior valor — são elas que movem o resultado. Bulk pode entrar como um registro só, com a quantidade no campo de unidades.</p></div>`;
+}
+
+function renderCotacao(ativos){
+  const r = filtrar(ativos).sort((a,b) => String(a.dataCotacao||"").localeCompare(String(b.dataCotacao||"")));
+  if (!r.length) return vazio(false);
+  $("conteudo").innerHTML =
+    `<p class="hint" style="margin:0 0 14px">Da cotação mais antiga para a mais recente. Digite o novo valor unitário e saia do campo para salvar.</p>` +
+    r.map(i => `
+      <div class="quote-row">
+        <div class="qn">
+          <div style="font-weight:600">${esc(i.nome||"Sem nome")}</div>
+          <div class="meta" style="color:var(--muted);font-size:13px">${[i.set,i.numero,i.idioma].filter(Boolean).map(esc).join(" · ")} — visto em ${i.dataCotacao ? esc(i.dataCotacao.split("-").reverse().join("/")) : "nunca"}</div>
+        </div>
+        <input type="number" step="0.01" min="0" class="num" value="${Number(i.valorMercado)||""}" data-quote="${i.id}" aria-label="Valor de mercado de ${esc(i.nome||"")}">
+      </div>`).join("");
+}
+
+function renderResumo(ativos, vendidos){
+  const grupo = (chave, rotulos) => {
+    const m = {};
+    ativos.forEach(i => {
+      const k = i[chave] || "—";
+      m[k] = m[k] || {c:0,v:0,n:0};
+      m[k].c += custo(i); m[k].v += mercado(i); m[k].n += Number(i.qtd)||1;
+    });
+    return Object.entries(m).sort((a,b)=>b[1].v-a[1].v).map(([k,x]) => {
+      const d = x.v - x.c, cls = d>=0?"up-t":"down-t";
+      return `<tr><td class="lbl">${esc(rotulos[k]||k)} <span style="opacity:.6">(${x.n})</span></td>
+        <td class="num">${money(x.v)} <span class="${cls}">${d>=0?"+":""}${money(d)}</span></td></tr>`;
+    }).join("");
+  };
+
+  const top = [...ativos].sort((a,b)=>mercado(b)-mercado(a)).slice(0,8)
+    .map(i => `<tr><td class="lbl">${esc(i.nome)} <span style="opacity:.6">${esc(i.set||"")}</span></td><td class="num">${money(mercado(i))}</td></tr>`).join("");
+
+  const velhas = ativos.filter(velha).length;
+  const nVend = vendidos.length;
+  const bruto = vendidos.reduce((s,i)=>s+(Number(i.vPreco)||0),0);
+  const lucroV = vendidos.reduce((s,i)=>s+realiza(i),0);
+
+  $("conteudo").innerHTML = `
+    <div class="grid2">
+      <div class="brk"><h3>Por idioma</h3><table>${grupo("idioma",{PT:"PT-BR",EN:"Inglês",JP:"Japonês"})}</table></div>
+      <div class="brk"><h3>Por grupo</h3><table>${grupo("balde",{acervo:"Acervo",giro:"Giro",bulk:"Bulk"})}</table></div>
+      <div class="brk"><h3>Por coleção</h3><table>${grupo("set",{})}</table></div>
+      <div class="brk"><h3>Maiores posições</h3><table>${top || '<tr><td class="lbl">Nada registrado</td><td></td></tr>'}</table></div>
+      <div class="brk"><h3>Vendas</h3><table>
+        <tr><td class="lbl">Itens vendidos</td><td class="num">${nVend}</td></tr>
+        <tr><td class="lbl">Faturamento bruto</td><td class="num">${money(bruto)}</td></tr>
+        <tr><td class="lbl">Resultado líquido</td><td class="num ${lucroV>=0?"up-t":"down-t"}">${money(lucroV)}</td></tr>
+      </table></div>
+      <div class="brk"><h3>Manutenção</h3><table>
+        <tr><td class="lbl">Cotações com mais de ${VALIDADE_COTACAO} dias</td><td class="num">${velhas}</td></tr>
+        <tr><td class="lbl">Sem local de guarda anotado</td><td class="num">${ativos.filter(i=>!i.local).length}</td></tr>
+        <tr><td class="lbl">Sem valor de mercado</td><td class="num">${ativos.filter(i=>!Number(i.valorMercado)).length}</td></tr>
+      </table></div>
+    </div>`;
+}
+
+/* ---------- painel ---------- */
+function abrir(item, forcarVenda){
+  editando = item ? item.id : null;
+  const i = item || {};
+  $("panelTitle").textContent = item ? "Editar registro" : "Nova entrada";
+  $("panelSub").textContent = item ? [i.set,i.numero].filter(Boolean).join(" · ") || "Ajuste o que precisar" : "Um registro por carta ou por lote idêntico.";
+  $("fTipo").value = i.tipo || (aba === "lacrado" ? "lacrado" : "avulsa");
+  $("fNome").value = i.nome || "";
+  $("fSet").value = i.set || "";
+  $("fNum").value = i.numero || "";
+  $("fIdi").value = i.idioma || "PT";
+  $("fQtd").value = i.qtd || 1;
+  $("fRar").value = i.raridade || "Comum";
+  $("fCond").value = i.condicao || "NM";
+  $("fGradE").value = i.gradEmpresa || "";
+  $("fGradN").value = i.gradNota || "";
+  $("fPreco").value = i.precoPago ?? "";
+  $("fData").value = i.dataCompra || new Date().toISOString().slice(0,10);
+  $("fFonte").value = i.fonte || "";
+  $("fMerc").value = i.valorMercado ?? "";
+  $("fCot").value = i.dataCotacao || "";
+  $("fBal").value = i.balde || "giro";
+  $("fLocal").value = i.local || "";
+  $("fObs").value = i.obs || "";
+  $("fStatus").value = forcarVenda ? "vendido" : (i.status || "ativo");
+  $("fVPreco").value = i.vPreco ?? (forcarVenda ? mercado(i) : "");
+  $("fVData").value = i.vData || (forcarVenda ? new Date().toISOString().slice(0,10) : "");
+  $("fVTaxa").value = i.vTaxa ?? TAXA_PAD;
+  $("fVFrete").value = i.vFrete ?? 0;
+  $("btnExcluir").hidden = !item;
+  sincronizaCampos();
+  $("scrim").classList.add("on");
+  $("panel").classList.add("on");
+  setTimeout(()=>$("fNome").focus(),60);
+}
+function fechar(){
+  $("scrim").classList.remove("on");
+  $("panel").classList.remove("on");
+  editando = null;
+}
+function sincronizaCampos(){
+  const avulsa = $("fTipo").value === "avulsa";
+  $("camposAvulsa").style.display = avulsa ? "grid" : "none";
+  $("camposGrad").style.display = avulsa ? "grid" : "none";
+  $("camposVenda").hidden = $("fStatus").value !== "vendido";
+}
+
+function coletar(){
+  const o = {
+    tipo: $("fTipo").value,
+    nome: $("fNome").value.trim(),
+    set: $("fSet").value.trim(),
+    numero: $("fNum").value.trim(),
+    idioma: $("fIdi").value,
+    qtd: Math.max(1, parseInt($("fQtd").value)||1),
+    precoPago: parseFloat($("fPreco").value)||0,
+    dataCompra: $("fData").value,
+    fonte: $("fFonte").value.trim(),
+    valorMercado: parseFloat($("fMerc").value)||0,
+    dataCotacao: $("fCot").value,
+    balde: $("fBal").value,
+    local: $("fLocal").value.trim(),
+    obs: $("fObs").value.trim(),
+    status: $("fStatus").value
+  };
+  if (o.tipo === "avulsa") {
+    o.raridade = $("fRar").value;
+    o.condicao = $("fCond").value;
+    o.gradEmpresa = $("fGradE").value;
+    o.gradNota = $("fGradN").value.trim();
+  }
+  if (o.status === "vendido") {
+    o.vPreco = parseFloat($("fVPreco").value)||0;
+    o.vData = $("fVData").value;
+    o.vTaxa = parseFloat($("fVTaxa").value)||0;
+    o.vFrete = parseFloat($("fVFrete").value)||0;
+  }
+  return o;
+}
+
+async function salvar(){
+  const o = coletar();
+  if (!o.nome) { toast("Dê um nome ao registro antes de salvar."); $("fNome").focus(); return; }
+  if (o.valorMercado && !o.dataCotacao) o.dataCotacao = new Date().toISOString().slice(0,10);
+  try {
+    if (demo) {
+      if (editando) itens = itens.map(x => x.id===editando ? {...x,...o} : x);
+      else itens.push({id:"d"+Date.now(), ...o});
+      render();
+    } else if (editando) {
+      await db.collection(COLECAO).doc(editando).set(o, {merge:true});
+    } else {
+      await db.collection(COLECAO).add(o);
+    }
+    fechar();
+    toast(editando ? "Registro atualizado." : "Registro adicionado.");
+  } catch(e){ console.error(e); toast("Não consegui salvar. Confira a conexão."); }
+}
+
+async function excluir(){
+  if (!editando) return;
+  if (!confirm("Excluir este registro? Não dá para desfazer.")) return;
+  try {
+    if (demo) itens = itens.filter(x => x.id !== editando); else await db.collection(COLECAO).doc(editando).delete();
+    if (demo) render();
+    fechar();
+    toast("Registro excluído.");
+  } catch(e){ console.error(e); toast("Não consegui excluir."); }
+}
+
+async function atualizarCotacao(id, valor){
+  const patch = { valorMercado: parseFloat(valor)||0, dataCotacao: new Date().toISOString().slice(0,10) };
+  try {
+    if (demo) { itens = itens.map(x => x.id===id ? {...x,...patch} : x); render(); }
+    else await db.collection(COLECAO).doc(id).set(patch, {merge:true});
+    toast("Cotação atualizada.");
+  } catch(e){ console.error(e); toast("Não consegui atualizar."); }
+}
+
+/* ---------- exportar ---------- */
+function baixar(nome, conteudo, tipo){
+  const b = new Blob([conteudo], {type:tipo});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(b); a.download = nome; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function exportarCSV(){
+  const cols = ["tipo","nome","set","numero","idioma","raridade","condicao","gradEmpresa","gradNota","qtd","precoPago","dataCompra","fonte","valorMercado","dataCotacao","balde","local","status","vPreco","vData","vTaxa","vFrete","obs"];
+  const cel = v => '"' + String(v??"").replace(/"/g,'""') + '"';
+  const linhas = [cols.join(";"), ...itens.map(i => cols.map(c => cel(i[c])).join(";"))];
+  baixar("cartas-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+linhas.join("\n"), "text/csv;charset=utf-8");
+}
+function backup(){
+  baixar("backup-cartas-"+new Date().toISOString().slice(0,10)+".json", JSON.stringify(itens,null,2), "application/json");
+}
+async function restaurar(file){
+  try {
+    const dados = JSON.parse(await file.text());
+    if (!Array.isArray(dados)) throw new Error("formato");
+    if (!confirm("Isso vai adicionar "+dados.length+" registros aos que já existem. Continuar?")) return;
+    if (demo) { dados.forEach((d,n) => itens.push({...d, id:"r"+Date.now()+n})); render(); }
+    else {
+      const lote = db.batch();
+      dados.forEach(d => { const {id, ...resto} = d; lote.set(db.collection(COLECAO).doc(), resto); });
+      await lote.commit();
+    }
+    toast(dados.length+" registros restaurados.");
+  } catch(e){ console.error(e); toast("Arquivo inválido. Use um backup gerado por este app."); }
+}
+
+/* ---------- eventos ---------- */
+let tt;
+function toast(msg){
+  const el = $("toast"); el.textContent = msg; el.classList.add("on");
+  clearTimeout(tt); tt = setTimeout(()=>el.classList.remove("on"), 2600);
+}
+
+$("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  aba = b.dataset.tab;
+  [...$("tabs").children].forEach(x => x.setAttribute("aria-selected", x === b));
+  render();
+});
+["busca","fIdioma","fBalde","fOrd"].forEach(id => $(id).addEventListener("input", render));
+$("btnAdd").addEventListener("click", () => abrir(null,false));
+$("btnSalvar").addEventListener("click", salvar);
+$("btnCancelar").addEventListener("click", fechar);
+$("btnExcluir").addEventListener("click", excluir);
+$("scrim").addEventListener("click", fechar);
+$("fTipo").addEventListener("change", sincronizaCampos);
+$("fStatus").addEventListener("change", sincronizaCampos);
+$("btnExport").addEventListener("click", exportarCSV);
+$("btnBackup").addEventListener("click", backup);
+$("btnRestore").addEventListener("click", () => $("fileIn").click());
+$("fileIn").addEventListener("change", e => { if (e.target.files[0]) restaurar(e.target.files[0]); e.target.value=""; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") fechar(); });
+
+$("conteudo").addEventListener("click", e => {
+  const ed = e.target.closest("[data-edit]"), sv = e.target.closest("[data-sell]");
+  if (ed) abrir(itens.find(i => i.id === ed.dataset.edit), false);
+  if (sv) abrir(itens.find(i => i.id === sv.dataset.sell), true);
+});
+$("conteudo").addEventListener("change", e => {
+  const q = e.target.closest("[data-quote]");
+  if (q) atualizarCotacao(q.dataset.quote, q.value);
+});
+</script>
+</body>
+</html>
