@@ -102,10 +102,15 @@ button,input,select,textarea{font:inherit;color:inherit}
 .rows{border-top:1px solid var(--edge)}
 .row{
   display:grid;
-  grid-template-columns:3px minmax(0,1fr) auto;
+  grid-template-columns:3px 40px minmax(0,1fr) auto;
   gap:0 14px;align-items:center;
   border-bottom:1px solid var(--edge);
   padding:0;
+}
+.thumb{
+  width:40px;height:56px;border-radius:4px;object-fit:cover;
+  background:var(--slab);border:1px solid var(--edge);
+  align-self:center;display:block;
 }
 .row .flag{align-self:stretch;border-radius:2px;margin:8px 0}
 .flag.acervo{background:var(--holo)}
@@ -187,6 +192,39 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 .panel-foot .cancel{background:none;border:1px solid var(--edge);border-radius:8px;padding:11px 18px;color:var(--muted);cursor:pointer}
 .danger{background:none;border:1px solid #5c2b2b;color:#ff9a9a;border-radius:8px;padding:9px 14px;cursor:pointer;width:100%;margin-top:4px}
 
+.lookup{background:var(--ink);border:1px solid var(--edge);border-radius:10px;padding:12px;margin-bottom:20px}
+.lookup .lrow{display:flex;gap:8px}
+.lookup input{flex:1;min-width:0;background:var(--slab);border:1px solid var(--edge);border-radius:8px;padding:8px 11px}
+.lookup .go{background:#39415f;border:0;border-radius:8px;padding:8px 15px;color:var(--paper);cursor:pointer}
+.lookup .go:hover{background:#454e73}
+.hits{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:9px;margin-top:12px}
+.hit{background:none;border:1px solid transparent;border-radius:8px;padding:3px;cursor:pointer;text-align:left}
+.hit:hover,.hit:focus-visible{border-color:#8ab6ff;outline:none}
+.hit img{width:100%;border-radius:4px;display:block}
+.hit span{display:block;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.25}
+#imgPrev{width:118px;border-radius:6px;margin-top:8px;display:none}
+
+#login{
+  position:fixed;inset:0;z-index:100;background:var(--ink);
+  display:none;align-items:center;justify-content:center;padding:24px;
+}
+#login.on{display:flex}
+.login-card{width:100%;max-width:340px}
+.login-card .holo{height:3px;background:var(--holo);border-radius:2px;margin-bottom:22px}
+.login-card h2{font-size:24px;margin-bottom:6px}
+.login-card p.sub{color:var(--muted);font-size:14px;margin:0 0 22px;line-height:1.45}
+.login-card input{
+  width:100%;background:var(--slab);border:1px solid var(--edge);
+  border-radius:8px;padding:11px 12px;margin-bottom:10px;
+}
+.login-card input:focus{outline:2px solid #8ab6ff;outline-offset:1px;border-color:transparent}
+.login-card button{
+  width:100%;background:var(--paper);color:var(--ink);border:0;
+  border-radius:8px;padding:12px;font-weight:600;cursor:pointer;margin-top:4px;
+}
+.login-card button:disabled{opacity:.6;cursor:default}
+.login-erro{color:var(--loss);font-size:13px;min-height:19px;margin:8px 0 0}
+
 .toast{
   position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
   background:var(--slab-hi);border:1px solid var(--edge);border-radius:9px;
@@ -196,8 +234,8 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 
 @media (max-width:640px){
   .wrap{padding:18px 14px 88px}
-  .row{grid-template-columns:3px minmax(0,1fr)}
-  .row .money{grid-column:2;text-align:left;padding:0 0 12px}
+  .row{grid-template-columns:3px 40px minmax(0,1fr)}
+  .row .money{grid-column:2/-1;text-align:left;padding:0 0 12px}
   .row .acts{justify-content:flex-start}
   .legend{gap:16px}
 }
@@ -208,6 +246,18 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 </head>
 <body>
 
+<div id="login">
+  <div class="login-card">
+    <div class="holo"></div>
+    <h2>Registro de cartas</h2>
+    <p class="sub">Entre para ver seu acervo. Só a sua conta enxerga estes registros.</p>
+    <input id="logEmail" type="email" placeholder="E-mail" autocomplete="username">
+    <input id="logSenha" type="password" placeholder="Senha" autocomplete="current-password">
+    <p class="login-erro" id="logErro"></p>
+    <button id="btnEntrar">Entrar</button>
+  </div>
+</div>
+
 <header class="bar">
   <div class="bar-holo"></div>
   <div class="bar-in">
@@ -217,6 +267,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <button id="btnExport">Exportar CSV</button>
     <button id="btnBackup">Backup</button>
     <button id="btnRestore">Restaurar</button>
+    <button id="btnSair" hidden>Sair</button>
     <input type="file" id="fileIn" accept="application/json" hidden>
   </div>
 </header>
@@ -278,6 +329,14 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <h2 id="panelTitle">Nova entrada</h2>
     <p class="sub" id="panelSub">Um registro por carta ou por lote idêntico.</p>
 
+    <div class="lookup" id="lookup">
+      <div class="lrow">
+        <input id="qBusca" placeholder="Buscar carta pelo nome em inglês" autocomplete="off">
+        <button type="button" class="go" id="btnBuscar">Buscar</button>
+      </div>
+      <div class="hits" id="hits"></div>
+    </div>
+
     <fieldset>
       <legend>Identificação</legend>
       <div class="f">
@@ -329,6 +388,20 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
         <div class="f"><label for="fData">Data</label><input id="fData" type="date"></div>
       </div>
       <div class="f"><label for="fFonte">Onde comprou</label><input id="fFonte" placeholder="Loja, Mercado Livre, troca"></div>
+      <div class="f">
+        <label for="fExtra">Frete e taxas da compra (R$, total)</label>
+        <input id="fExtra" type="number" min="0" step="0.01" value="0">
+        <p class="hint">Entra no custo do registro inteiro, não por unidade. É o que faz o lucro do papel bater com o do bolso.</p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Imagem</legend>
+      <div class="f">
+        <label for="fImg">Link da imagem</label>
+        <input id="fImg" placeholder="https://…" autocomplete="off">
+      </div>
+      <img id="imgPrev" alt="">
     </fieldset>
 
     <fieldset>
@@ -377,6 +450,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
       <button class="save" id="btnSalvar">Salvar</button>
       <button class="cancel" id="btnCancelar">Cancelar</button>
     </div>
+    <button class="danger" id="btnSalvarMais" style="border-color:var(--edge);color:var(--muted)">Salvar e cadastrar a próxima</button>
     <button class="danger" id="btnExcluir" hidden>Excluir registro</button>
   </div>
 </aside>
@@ -385,21 +459,24 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
 /* =========================================================
    1. CONFIGURAÇÃO — cole aqui os dados do seu projeto Firebase
    ========================================================= */
 const FIREBASE_CONFIG = {
-  apiKey: "COLE_AQUI",
-  authDomain: "COLE_AQUI",
-  projectId: "COLE_AQUI",
-  storageBucket: "COLE_AQUI",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI"
+  apiKey: "AIzaSyBLLAn_FJhIs6WhtQWlUTBGxvwFgjgk00k",
+  authDomain: "pokemon-8c55f.firebaseapp.com",
+  projectId: "pokemon-8c55f",
+  storageBucket: "pokemon-8c55f.firebasestorage.app",
+  messagingSenderId: "89745623408",
+  appId: "1:89745623408:web:0e143cc8457d417174e7b5"
 };
-const COLECAO   = "tcg_itens";  // nome da coleção no Firestore
+const RAIZ      = "usuarios";   // coleção raiz, uma pasta por conta
+const COLECAO   = "cartas";     // subcoleção com os registros
 const TAXA_PAD  = 13;           // taxa média de marketplace, em %
 const VALIDADE_COTACAO = 90;    // dias até a cotação ser marcada como velha
+const API_KEY   = "";           // opcional: chave grátis em dev.pokemontcg.io
 
 /* ========================================================= */
 
@@ -408,7 +485,20 @@ const money = v => BRL.format(Number(v)||0);
 const $ = id => document.getElementById(id);
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-let db = null, demo = false, itens = [], aba = "avulsa", editando = null;
+let db = null, auth = null, uid = null, parar = null;
+let demo = false, itens = [], aba = "avulsa", editando = null;
+
+const col = () => db.collection(RAIZ).doc(uid).collection(COLECAO);
+
+const MSG_AUTH = {
+  "auth/invalid-email": "E-mail inválido.",
+  "auth/user-not-found": "Não existe conta com esse e-mail.",
+  "auth/wrong-password": "Senha incorreta.",
+  "auth/invalid-credential": "E-mail ou senha incorretos.",
+  "auth/too-many-requests": "Muitas tentativas. Espere alguns minutos.",
+  "auth/network-request-failed": "Sem conexão com a internet.",
+  "auth/operation-not-allowed": "Ative o login por e-mail e senha no console do Firebase."
+};
 
 /* ---------- conexão ---------- */
 if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
@@ -420,11 +510,12 @@ if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
-    $("mode").textContent = "sincronizado";
-    db.collection(COLECAO).onSnapshot(
-      snap => { itens = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
-      err => { $("mode").textContent = "sem conexão"; console.error(err); toast("Não consegui ler o Firestore. Confira as regras de acesso."); }
-    );
+    auth = firebase.auth();
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+    auth.onAuthStateChanged(u => {
+      if (u) { uid = u.uid; travar(false); ouvir(); }
+      else   { uid = null; if (parar) { parar(); parar = null; } itens = []; render(); travar(true); }
+    });
   } catch (e) {
     demo = true;
     $("mode").textContent = "modo demonstração";
@@ -434,10 +525,39 @@ if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
   }
 }
 
+function travar(bloqueado){
+  $("login").classList.toggle("on", bloqueado);
+  $("btnSair").hidden = bloqueado;
+  $("mode").textContent = bloqueado ? "" : "sincronizado";
+  if (bloqueado) { $("logSenha").value = ""; setTimeout(()=>$("logEmail").focus(), 80); }
+}
+
+function ouvir(){
+  parar = col().onSnapshot(
+    snap => { itens = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
+    err => { $("mode").textContent = "sem acesso"; console.error(err); toast("O Firestore recusou a leitura. Confira as regras de segurança."); }
+  );
+}
+
+async function entrar(){
+  const e = $("logEmail").value.trim(), senha = $("logSenha").value;
+  if (!e || !senha) { $("logErro").textContent = "Preencha e-mail e senha."; return; }
+  $("btnEntrar").disabled = true; $("btnEntrar").textContent = "Entrando…";
+  try {
+    await auth.signInWithEmailAndPassword(e, senha);
+    $("logErro").textContent = "";
+  } catch (err) {
+    console.error(err);
+    $("logErro").textContent = MSG_AUTH[err.code] || "Não consegui entrar. Tente de novo.";
+  } finally {
+    $("btnEntrar").disabled = false; $("btnEntrar").textContent = "Entrar";
+  }
+}
+
 function amostras(){
   const hoje = new Date().toISOString().slice(0,10);
   return [
-    {id:"d1",tipo:"avulsa",nome:"Charizard ex",set:"Obsidian Flames",numero:"223/197",idioma:"EN",raridade:"Special Illustration",condicao:"NM",qtd:1,precoPago:890,dataCompra:"2025-11-02",fonte:"Loja física",valorMercado:1150,dataCotacao:hoje,balde:"acervo",local:"Cofre",status:"ativo",gradEmpresa:"PSA",gradNota:"10"},
+    {id:"d1",tipo:"avulsa",nome:"Charizard ex",set:"Obsidian Flames",numero:"223/197",idioma:"EN",raridade:"Special Illustration",condicao:"NM",qtd:1,precoPago:890,custoExtra:35,dataCompra:"2025-11-02",fonte:"Loja física",valorMercado:1150,dataCotacao:hoje,balde:"acervo",local:"Cofre",status:"ativo",gradEmpresa:"PSA",gradNota:"10",img:"https://images.pokemontcg.io/sv3/223_hires.png"},
     {id:"d2",tipo:"avulsa",nome:"Pikachu com Grey Felt Hat",set:"Promo",numero:"SVP-085",idioma:"JP",raridade:"Promo",condicao:"NM",qtd:2,precoPago:60,dataCompra:"2026-01-18",fonte:"Mercado Livre",valorMercado:95,dataCotacao:hoje,balde:"giro",local:"Toploader, caixa A",status:"ativo"},
     {id:"d3",tipo:"lacrado",nome:"Elite Trainer Box",set:"Fenda Paradoxal",numero:"",idioma:"PT",qtd:1,precoPago:320,dataCompra:"2026-03-05",fonte:"Loja física",valorMercado:295,dataCotacao:hoje,balde:"acervo",local:"Prateleira",status:"ativo"},
     {id:"d4",tipo:"avulsa",nome:"Mew ex",set:"151",numero:"205/165",idioma:"PT",raridade:"Alt Art",condicao:"LP",qtd:1,precoPago:210,dataCompra:"2025-08-14",fonte:"Troca",valorMercado:340,dataCotacao:"2025-09-01",balde:"giro",local:"Binder 1, p. 12",status:"vendido",vPreco:340,vData:"2026-02-10",vTaxa:13,vFrete:22}
@@ -445,7 +565,7 @@ function amostras(){
 }
 
 /* ---------- cálculos ---------- */
-const custo   = i => (Number(i.precoPago)||0) * (Number(i.qtd)||1);
+const custo   = i => (Number(i.precoPago)||0) * (Number(i.qtd)||1) + (Number(i.custoExtra)||0);
 const mercado = i => (Number(i.valorMercado)||0) * (Number(i.qtd)||1);
 const liquido = i => mercado(i) * (1 - TAXA_PAD/100);
 const realiza = i => (Number(i.vPreco)||0) * (1 - (Number(i.vTaxa)||0)/100) - (Number(i.vFrete)||0) - custo(i);
@@ -534,9 +654,14 @@ function renderLista(lista, vendaView){
     if (i.raridade && i.raridade !== "Comum") chips.push('<span class="chip">'+esc(i.raridade)+"</span>");
     if (!vendaView && velha(i)) chips.push('<span class="chip stale">cotação antiga</span>');
 
+    const thumb = i.img
+      ? `<img class="thumb" src="${esc(i.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
+      : `<div class="thumb"></div>`;
+
     return `
     <div class="row">
       <div class="flag ${esc(i.balde||"giro")}"></div>
+      ${thumb}
       <div class="main">
         <div class="title">${esc(i.nome||"Sem nome")} ${chips.join(" ")}</div>
         <div class="meta">${meta}</div>
@@ -635,6 +760,10 @@ function abrir(item, forcarVenda){
   $("fPreco").value = i.precoPago ?? "";
   $("fData").value = i.dataCompra || new Date().toISOString().slice(0,10);
   $("fFonte").value = i.fonte || "";
+  $("fExtra").value = i.custoExtra ?? 0;
+  $("fImg").value = i.img || "";
+  $("qBusca").value = ""; $("hits").innerHTML = ""; hits = [];
+  previewImg();
   $("fMerc").value = i.valorMercado ?? "";
   $("fCot").value = i.dataCotacao || "";
   $("fBal").value = i.balde || "giro";
@@ -660,6 +789,7 @@ function sincronizaCampos(){
   const avulsa = $("fTipo").value === "avulsa";
   $("camposAvulsa").style.display = avulsa ? "grid" : "none";
   $("camposGrad").style.display = avulsa ? "grid" : "none";
+  $("lookup").style.display = avulsa ? "block" : "none";
   $("camposVenda").hidden = $("fStatus").value !== "vendido";
 }
 
@@ -674,6 +804,8 @@ function coletar(){
     precoPago: parseFloat($("fPreco").value)||0,
     dataCompra: $("fData").value,
     fonte: $("fFonte").value.trim(),
+    custoExtra: parseFloat($("fExtra").value)||0,
+    img: $("fImg").value.trim(),
     valorMercado: parseFloat($("fMerc").value)||0,
     dataCotacao: $("fCot").value,
     balde: $("fBal").value,
@@ -696,30 +828,94 @@ function coletar(){
   return o;
 }
 
-async function salvar(){
+async function salvar(continuar){
   const o = coletar();
   if (!o.nome) { toast("Dê um nome ao registro antes de salvar."); $("fNome").focus(); return; }
   if (o.valorMercado && !o.dataCotacao) o.dataCotacao = new Date().toISOString().slice(0,10);
+  const era = editando;
   try {
     if (demo) {
-      if (editando) itens = itens.map(x => x.id===editando ? {...x,...o} : x);
-      else itens.push({id:"d"+Date.now(), ...o});
+      if (era) itens = itens.map(x => x.id===era ? {...x,...o} : x);
+      else itens.push({id:"d"+Date.now()+Math.random().toString(36).slice(2,6), ...o});
       render();
-    } else if (editando) {
-      await db.collection(COLECAO).doc(editando).set(o, {merge:true});
+    } else if (era) {
+      await col().doc(era).set(o, {merge:true});
     } else {
-      await db.collection(COLECAO).add(o);
+      await col().add(o);
     }
+  } catch(e){ console.error(e); toast("Não consegui salvar. Confira a conexão."); return; }
+
+  if (continuar) {
+    editando = null;
+    $("panelTitle").textContent = "Nova entrada";
+    $("panelSub").textContent = "Coleção, data e local seguem preenchidos.";
+    ["fNome","fNum","fPreco","fMerc","fImg","fObs","fGradN","qBusca"].forEach(id => $(id).value = "");
+    $("fQtd").value = 1; $("fExtra").value = 0; $("fGradE").value = "";
+    $("hits").innerHTML = ""; hits = []; previewImg();
+    $("btnExcluir").hidden = true;
+    $("qBusca").focus();
+    toast("Salvo. Manda a próxima.");
+  } else {
     fechar();
-    toast(editando ? "Registro atualizado." : "Registro adicionado.");
-  } catch(e){ console.error(e); toast("Não consegui salvar. Confira a conexão."); }
+    toast(era ? "Registro atualizado." : "Registro adicionado.");
+  }
+}
+
+/* ---------- busca de carta ---------- */
+let hits = [];
+const MAPA_RAR = {
+  "Common":"Comum","Uncommon":"Incomum","Rare":"Holo","Rare Holo":"Holo",
+  "Double Rare":"V / ex","Ultra Rare":"Full Art","Rare Ultra":"Full Art",
+  "Illustration Rare":"Full Art","Special Illustration Rare":"Special Illustration",
+  "Hyper Rare":"Ouro / Hyper","Rare Secret":"Ouro / Hyper","Rare Rainbow":"Ouro / Hyper",
+  "Rare Holo V":"V / ex","Rare Holo VMAX":"V / ex","Rare Holo ex":"V / ex","Promo":"Promo"
+};
+
+function previewImg(){
+  const u = $("fImg").value.trim(), el = $("imgPrev");
+  if (u) { el.src = u; el.style.display = "block"; } else { el.removeAttribute("src"); el.style.display = "none"; }
+}
+
+async function buscarCarta(){
+  const t = $("qBusca").value.trim();
+  if (!t) return;
+  const alvo = $("hits");
+  alvo.innerHTML = '<p class="hint">Procurando…</p>';
+  const termo = t.includes(" ") ? 'name:"'+t.replace(/"/g,"")+'"' : "name:"+t.replace(/[^\w-]/g,"")+"*";
+  try {
+    const cab = API_KEY ? {"X-Api-Key":API_KEY} : {};
+    const r = await fetch("https://api.pokemontcg.io/v2/cards?pageSize=12&orderBy=-set.releaseDate&q="+encodeURIComponent(termo), {headers:cab});
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    hits = j.data || [];
+    if (!hits.length) { alvo.innerHTML = '<p class="hint">Nada encontrado. A base é de cartas em inglês — busque pelo nome original, mesmo que sua carta seja PT ou JP.</p>'; return; }
+    alvo.innerHTML = hits.map((c,n) =>
+      `<button type="button" class="hit" data-hit="${n}" title="${esc(c.name)}">
+         <img src="${esc(c.images.small)}" alt="${esc(c.name)}" loading="lazy">
+         <span>${esc(c.set.name)}<br>${esc(c.number)}</span>
+       </button>`).join("");
+  } catch(e) {
+    console.error(e);
+    alvo.innerHTML = '<p class="hint">A base não respondeu agora. Preencha na mão e, para a imagem, cole o link direto de onde você tiver a foto.</p>';
+  }
+}
+
+function usarHit(c){
+  $("fNome").value = c.name;
+  $("fSet").value = c.set.name;
+  $("fNum").value = c.number + "/" + (c.set.printedTotal || c.set.total || "");
+  $("fImg").value = c.images.large || c.images.small;
+  if (c.rarity && MAPA_RAR[c.rarity]) $("fRar").value = MAPA_RAR[c.rarity];
+  previewImg();
+  toast("Ficha preenchida. Agora os valores em real.");
+  $("fPreco").focus();
 }
 
 async function excluir(){
   if (!editando) return;
   if (!confirm("Excluir este registro? Não dá para desfazer.")) return;
   try {
-    if (demo) itens = itens.filter(x => x.id !== editando); else await db.collection(COLECAO).doc(editando).delete();
+    if (demo) itens = itens.filter(x => x.id !== editando); else await col().doc(editando).delete();
     if (demo) render();
     fechar();
     toast("Registro excluído.");
@@ -730,7 +926,7 @@ async function atualizarCotacao(id, valor){
   const patch = { valorMercado: parseFloat(valor)||0, dataCotacao: new Date().toISOString().slice(0,10) };
   try {
     if (demo) { itens = itens.map(x => x.id===id ? {...x,...patch} : x); render(); }
-    else await db.collection(COLECAO).doc(id).set(patch, {merge:true});
+    else await col().doc(id).set(patch, {merge:true});
     toast("Cotação atualizada.");
   } catch(e){ console.error(e); toast("Não consegui atualizar."); }
 }
@@ -743,7 +939,7 @@ function baixar(nome, conteudo, tipo){
   setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
 }
 function exportarCSV(){
-  const cols = ["tipo","nome","set","numero","idioma","raridade","condicao","gradEmpresa","gradNota","qtd","precoPago","dataCompra","fonte","valorMercado","dataCotacao","balde","local","status","vPreco","vData","vTaxa","vFrete","obs"];
+  const cols = ["tipo","nome","set","numero","idioma","raridade","condicao","gradEmpresa","gradNota","qtd","precoPago","custoExtra","dataCompra","fonte","valorMercado","dataCotacao","balde","local","status","vPreco","vData","vTaxa","vFrete","obs","img"];
   const cel = v => '"' + String(v??"").replace(/"/g,'""') + '"';
   const linhas = [cols.join(";"), ...itens.map(i => cols.map(c => cel(i[c])).join(";"))];
   baixar("cartas-"+new Date().toISOString().slice(0,10)+".csv", "\uFEFF"+linhas.join("\n"), "text/csv;charset=utf-8");
@@ -759,7 +955,7 @@ async function restaurar(file){
     if (demo) { dados.forEach((d,n) => itens.push({...d, id:"r"+Date.now()+n})); render(); }
     else {
       const lote = db.batch();
-      dados.forEach(d => { const {id, ...resto} = d; lote.set(db.collection(COLECAO).doc(), resto); });
+      dados.forEach(d => { const {id, ...resto} = d; lote.set(col().doc(), resto); });
       await lote.commit();
     }
     toast(dados.length+" registros restaurados.");
@@ -781,12 +977,25 @@ $("tabs").addEventListener("click", e => {
 });
 ["busca","fIdioma","fBalde","fOrd"].forEach(id => $(id).addEventListener("input", render));
 $("btnAdd").addEventListener("click", () => abrir(null,false));
-$("btnSalvar").addEventListener("click", salvar);
+$("btnSalvar").addEventListener("click", () => salvar(false));
+$("btnSalvarMais").addEventListener("click", () => salvar(true));
+$("btnBuscar").addEventListener("click", buscarCarta);
+$("qBusca").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); buscarCarta(); } });
+$("fImg").addEventListener("input", previewImg);
+$("imgPrev").addEventListener("error", () => { $("imgPrev").style.display = "none"; });
+$("hits").addEventListener("click", e => {
+  const b = e.target.closest("[data-hit]");
+  if (b && hits[b.dataset.hit]) usarHit(hits[b.dataset.hit]);
+});
 $("btnCancelar").addEventListener("click", fechar);
 $("btnExcluir").addEventListener("click", excluir);
 $("scrim").addEventListener("click", fechar);
 $("fTipo").addEventListener("change", sincronizaCampos);
 $("fStatus").addEventListener("change", sincronizaCampos);
+$("btnEntrar").addEventListener("click", entrar);
+$("logSenha").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
+$("logEmail").addEventListener("keydown", e => { if (e.key === "Enter") $("logSenha").focus(); });
+$("btnSair").addEventListener("click", () => { if (auth) auth.signOut(); });
 $("btnExport").addEventListener("click", exportarCSV);
 $("btnBackup").addEventListener("click", backup);
 $("btnRestore").addEventListener("click", () => $("fileIn").click());
