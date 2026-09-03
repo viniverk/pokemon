@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Registro de cartas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10131f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cartas">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
@@ -137,6 +145,31 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 .row .acts button:hover{color:var(--paper);border-color:#3d466d}
 
+.vista{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden}
+.vista button{background:none;border:0;padding:8px 14px;color:var(--muted);cursor:pointer}
+.vista button[aria-pressed="true"]{background:var(--slab-hi);color:var(--paper)}
+
+.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:16px 14px;padding-top:6px}
+.card{background:none;border:0;padding:0;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.card .ph{
+  position:relative;width:100%;aspect-ratio:5/7;border-radius:7px;overflow:hidden;
+  background:var(--slab);border:1px solid var(--edge);
+  display:flex;align-items:center;justify-content:center;
+}
+.card .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.card .semimg{font-size:11px;color:var(--muted);padding:8px;text-align:center;line-height:1.3}
+.card .selo{
+  position:absolute;top:5px;right:5px;background:rgba(16,19,31,.88);
+  border:1px solid var(--edge);border-radius:5px;font-size:11px;padding:1px 6px;
+}
+.card .ph,.card .fx,.card .nm,.card .cod,.card .val{display:block}
+.card .fx{height:3px;border-radius:2px;margin-top:7px}
+.card .nm{font-size:12px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .cod{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .val{font-weight:600;font-size:14px;margin-top:2px}
+.card:hover .ph,.card:focus-visible .ph{border-color:#8ab6ff}
+.card:focus-visible{outline:none}
+
 .empty{padding:56px 4px;color:var(--muted);max-width:52ch}
 .empty h3{font-size:20px;color:var(--paper);margin-bottom:8px}
 
@@ -203,6 +236,17 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 .hit img{width:100%;border-radius:4px;display:block}
 .hit span{display:block;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.25}
 #imgPrev{width:118px;border-radius:6px;margin-top:8px;display:none}
+
+#instalar{
+  display:none;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--slab);border:1px solid var(--edge);border-radius:10px;
+  padding:12px 14px;margin-bottom:20px;
+}
+#instalar.on{display:flex}
+#instalar p{margin:0;flex:1;min-width:180px;font-size:14px;color:var(--muted)}
+#instalar p b{color:var(--paper);font-weight:600}
+#instalar .ok{background:var(--paper);color:var(--ink);border:0;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer}
+#instalar .no{background:none;border:1px solid var(--edge);border-radius:8px;padding:8px 12px;color:var(--muted);cursor:pointer}
 
 #login{
   position:fixed;inset:0;z-index:100;background:var(--ink);
@@ -274,6 +318,12 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 
 <main class="wrap">
 
+  <div id="instalar">
+    <p id="instalarTexto"></p>
+    <button class="ok" id="btnInstalar">Instalar</button>
+    <button class="no" id="btnInstalarNao">Agora não</button>
+  </div>
+
   <section class="pos">
     <div class="pos-head">
       <h2>Posição do acervo</h2>
@@ -306,6 +356,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
       <option value="">Todos os idiomas</option>
       <option value="PT">PT-BR</option><option value="EN">EN</option><option value="JP">JP</option>
     </select>
+    <select id="fSetF"><option value="">Todas as coleções</option></select>
     <select id="fBalde">
       <option value="">Todos os grupos</option>
       <option value="acervo">Acervo</option><option value="giro">Giro</option><option value="bulk">Bulk</option>
@@ -316,6 +367,10 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
       <option value="recente">Compra recente</option>
       <option value="nome">Nome</option>
     </select>
+    <div class="vista" role="group" aria-label="Modo de exibição">
+      <button data-vista="lista" aria-pressed="true">Lista</button>
+      <button data-vista="grade" aria-pressed="false">Grade</button>
+    </div>
     <button class="add" id="btnAdd">Adicionar</button>
   </div>
 
@@ -486,7 +541,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 let db = null, auth = null, uid = null, parar = null;
-let demo = false, itens = [], aba = "avulsa", editando = null;
+let demo = false, itens = [], aba = "avulsa", vista = "lista", editando = null;
 
 const col = () => db.collection(RAIZ).doc(uid).collection(COLECAO);
 
@@ -605,6 +660,7 @@ function render(){
   $("cLacrado").textContent = ativos.filter(i=>i.tipo==="lacrado").reduce((s,i)=>s+(Number(i.qtd)||1),0);
   $("cVendas").textContent  = vendidos.length;
 
+  popularSets();
   $("tools").style.display = (aba==="resumo") ? "none" : "flex";
 
   if (aba === "resumo")  return renderResumo(ativos, vendidos);
@@ -615,10 +671,11 @@ function render(){
 
 function filtrar(lista){
   const q = $("busca").value.trim().toLowerCase();
-  const fi = $("fIdioma").value, fb = $("fBalde").value, ord = $("fOrd").value;
+  const fi = $("fIdioma").value, fb = $("fBalde").value, ord = $("fOrd").value, fs = $("fSetF").value;
   let r = lista.filter(i => {
     if (fi && i.idioma !== fi) return false;
     if (fb && i.balde !== fb) return false;
+    if (fs && i.set !== fs) return false;
     if (!q) return true;
     return [i.nome,i.set,i.numero,i.local,i.obs].join(" ").toLowerCase().includes(q);
   });
@@ -631,9 +688,36 @@ function filtrar(lista){
   return r.sort(cmp);
 }
 
+function popularSets(){
+  const sel = $("fSetF"), atual = sel.value;
+  const sets = [...new Set(itens.map(i => i.set).filter(Boolean))].sort((a,b) => a.localeCompare(b,"pt-BR"));
+  sel.innerHTML = '<option value="">Todas as coleções</option>' +
+    sets.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+  sel.value = sets.includes(atual) ? atual : "";
+}
+
+function renderGrade(r, vendaView){
+  $("conteudo").innerHTML = '<div class="grade">' + r.map(i => {
+    const q = Number(i.qtd)||1;
+    const preco = vendaView ? (Number(i.vPreco)||0) : (Number(i.valorMercado)||0);
+    const foto = i.img
+      ? `<img src="${esc(i.img)}" alt="${esc(i.nome||"")}" loading="lazy" onerror="this.remove()">`
+      : `<span class="semimg">${esc(i.nome||"sem imagem")}</span>`;
+    return `
+      <button class="card" data-edit="${i.id}" title="${esc(i.nome||"")}">
+        <span class="ph">${foto}${q>1 ? `<span class="selo num">${q}×</span>` : ""}</span>
+        <span class="fx flag ${esc(i.balde||"giro")}"></span>
+        <span class="nm">${esc(i.nome||"Sem nome")}</span>
+        <span class="cod">${esc(i.numero || i.set || "—")}</span>
+        <span class="val num">${money(preco)}</span>
+      </button>`;
+  }).join("") + "</div>";
+}
+
 function renderLista(lista, vendaView){
   const r = filtrar(lista);
   if (!r.length) return vazio(vendaView);
+  if (vista === "grade") return renderGrade(r, vendaView);
 
   $("conteudo").innerHTML = '<div class="rows">' + r.map(i => {
     const c = custo(i), m = vendaView ? (Number(i.vPreco)||0) : mercado(i);
@@ -975,7 +1059,13 @@ $("tabs").addEventListener("click", e => {
   [...$("tabs").children].forEach(x => x.setAttribute("aria-selected", x === b));
   render();
 });
-["busca","fIdioma","fBalde","fOrd"].forEach(id => $(id).addEventListener("input", render));
+["busca","fIdioma","fBalde","fOrd","fSetF"].forEach(id => $(id).addEventListener("input", render));
+document.querySelector(".vista").addEventListener("click", e => {
+  const b = e.target.closest("button[data-vista]"); if (!b) return;
+  vista = b.dataset.vista;
+  [...b.parentElement.children].forEach(x => x.setAttribute("aria-pressed", x === b));
+  render();
+});
 $("btnAdd").addEventListener("click", () => abrir(null,false));
 $("btnSalvar").addEventListener("click", () => salvar(false));
 $("btnSalvarMais").addEventListener("click", () => salvar(true));
@@ -992,6 +1082,54 @@ $("btnExcluir").addEventListener("click", excluir);
 $("scrim").addEventListener("click", fechar);
 $("fTipo").addEventListener("change", sincronizaCampos);
 $("fStatus").addEventListener("change", sincronizaCampos);
+/* ---------- instalação no celular ---------- */
+let promptInstalar = null;
+const iOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const jaInstalado = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+function dispensado(){
+  try { return localStorage.getItem("instalarDispensado") === "1"; } catch(e){ return false; }
+}
+function dispensar(){
+  try { localStorage.setItem("instalarDispensado","1"); } catch(e){}
+  $("instalar").classList.remove("on");
+}
+
+if (!jaInstalado && !dispensado()) {
+  if (iOS) {
+    $("instalarTexto").innerHTML = "<b>Deixe na tela de início.</b> Toque em Compartilhar, no rodapé do Safari, e escolha Adicionar à Tela de Início.";
+    $("btnInstalar").hidden = true;
+    $("instalar").classList.add("on");
+  }
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    promptInstalar = e;
+    $("instalarTexto").innerHTML = "<b>Instale no celular.</b> Abre em tela cheia, com ícone próprio, sem a barra do navegador.";
+    $("btnInstalar").hidden = false;
+    $("instalar").classList.add("on");
+  });
+}
+
+window.addEventListener("appinstalled", () => {
+  $("instalar").classList.remove("on");
+  toast("Instalado. Procure o ícone na tela de início.");
+});
+
+$("btnInstalar").addEventListener("click", async () => {
+  if (!promptInstalar) return;
+  promptInstalar.prompt();
+  const r = await promptInstalar.userChoice;
+  promptInstalar = null;
+  if (r.outcome !== "accepted") dispensar();
+});
+$("btnInstalarNao").addEventListener("click", dispensar);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(e => console.warn("Service worker não registrou:", e));
+  });
+}
+
 $("btnEntrar").addEventListener("click", entrar);
 $("logSenha").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
 $("logEmail").addEventListener("keydown", e => { if (e.key === "Enter") $("logSenha").focus(); });
