@@ -364,6 +364,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <select id="fOrd">
       <option value="valor">Maior valor</option>
       <option value="lucro">Maior ganho %</option>
+      <option value="numero">Número da carta</option>
       <option value="recente">Compra recente</option>
       <option value="nome">Nome</option>
     </select>
@@ -669,6 +670,16 @@ function render(){
   renderLista(ativos.filter(i => (i.tipo||"avulsa") === aba), false);
 }
 
+/* Separa prefixo e número: "4/165" vira {pre:"", n:4};
+   "TG12/TG30" vira {pre:"TG", n:12}; "SVP-085" vira {pre:"SVP-", n:85}.
+   Assim 4 vem antes de 80, e as cartas de subconjunto ficam agrupadas. */
+function chaveNumero(v){
+  const t = String(v||"").trim();
+  const m = t.match(/^([^\d]*)(\d+)/);
+  return m ? { pre: m[1].toUpperCase(), n: parseInt(m[2],10) }
+           : { pre: t.toUpperCase(), n: Number.MAX_SAFE_INTEGER };
+}
+
 function filtrar(lista){
   const q = $("busca").value.trim().toLowerCase();
   const fi = $("fIdioma").value, fb = $("fBalde").value, ord = $("fOrd").value, fs = $("fSetF").value;
@@ -681,6 +692,12 @@ function filtrar(lista){
   });
   const cmp = {
     valor:  (a,b) => mercado(b) - mercado(a),
+    numero: (a,b) => {
+      const sa = String(a.set||""), sb = String(b.set||"");
+      if (sa !== sb) return sa.localeCompare(sb,"pt-BR");
+      const x = chaveNumero(a.numero), y = chaveNumero(b.numero);
+      return x.pre.localeCompare(y.pre) || x.n - y.n;
+    },
     lucro:  (a,b) => (custo(b)?(mercado(b)-custo(b))/custo(b):0) - (custo(a)?(mercado(a)-custo(a))/custo(a):0),
     recente:(a,b) => String(b.dataCompra||"").localeCompare(String(a.dataCompra||"")),
     nome:   (a,b) => String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
