@@ -664,14 +664,16 @@ function amostras(){
 }
 
 /* ---------- cálculos ---------- */
-const custo   = i => (Number(i.precoPago)||0) * (Number(i.qtd)||1) + (Number(i.custoExtra)||0);
-const mercado = i => (Number(i.valorMercado)||0) * (Number(i.qtd)||1);
-const liquido = i => mercado(i) * (1 - TAXA_PAD/100);
-const realiza = i => (Number(i.vPreco)||0) * (1 - (Number(i.vTaxa)||0)/100) - (Number(i.vFrete)||0) - custo(i);
-const velha = i => {
+/* declaradas como function para ficarem disponíveis desde o início do script,
+   já que render() pode rodar antes desta linha no modo demonstração */
+function custo(i){ return (Number(i.precoPago)||0) * (Number(i.qtd)||1) + (Number(i.custoExtra)||0); }
+function mercado(i){ return (Number(i.valorMercado)||0) * (Number(i.qtd)||1); }
+function liquido(i){ return mercado(i) * (1 - TAXA_PAD/100); }
+function realiza(i){ return (Number(i.vPreco)||0) * (1 - (Number(i.vTaxa)||0)/100) - (Number(i.vFrete)||0) - custo(i); }
+function velha(i){
   if (!i.dataCotacao) return true;
   return (Date.now() - new Date(i.dataCotacao+"T00:00:00").getTime()) / 86400000 > VALIDADE_COTACAO;
-};
+}
 
 /* ---------- render ---------- */
 function render(){
@@ -1246,6 +1248,27 @@ async function salvar(continuar){
     fechar();
     toast(era ? "Registro atualizado." : "Registro adicionado.");
   }
+}
+
+async function excluir(){
+  if (!editando) return;
+  if (!confirm("Excluir este registro? Não dá para desfazer.")) return;
+  const era = editando;
+  try {
+    if (demo) { itens = itens.filter(x => x.id !== era); render(); }
+    else await col().doc(era).delete();
+    fechar();
+    toast("Registro excluído.");
+  } catch(e){ console.error(e); toast("Não consegui excluir."); }
+}
+
+async function atualizarCotacao(id, valor){
+  const patch = { valorMercado: parseFloat(valor)||0, dataCotacao: new Date().toISOString().slice(0,10) };
+  try {
+    if (demo) { itens = itens.map(x => x.id===id ? {...x,...patch} : x); render(); }
+    else await col().doc(id).set(patch, {merge:true});
+    toast("Cotação atualizada.");
+  } catch(e){ console.error(e); toast("Não consegui atualizar."); }
 }
 
 /* ---------- busca de carta no painel (TCGdex) ---------- */
