@@ -71,9 +71,29 @@ Essa config não é segredo. Ela identifica o projeto, não autoriza nada. Quem 
 
 ### 3. GitHub Pages
 
-Suba o `index.html` na raiz do repositório. Em *Settings → Pages*, escolha a branch e a pasta raiz. Em um ou dois minutos a página fica no ar.
+Suba estes arquivos na raiz do repositório:
+
+```
+index.html
+manifest.json
+sw.js
+icon-192.png
+icon-512.png
+```
+
+Em *Settings → Pages*, escolha a branch e a pasta raiz. Em um ou dois minutos a página fica no ar.
 
 Depois disso, volte ao Firebase em *Authentication → Settings → Authorized domains* e adicione o domínio do Pages (`seu-usuario.github.io`). Sem isso o login é recusado.
+
+---
+
+## Instalação no celular
+
+O app é um PWA. No Android, o Chrome mostra uma faixa de instalação assim que a página carrega — instalado, ganha ícone próprio e abre em tela cheia. No iPhone, o Safari não oferece o botão: use Compartilhar → Adicionar à Tela de Início. A faixa dentro do app lembra disso.
+
+O `sw.js` guarda os arquivos do app em cache com estratégia de rede primeiro, então uma edição no `index.html` aparece na abertura seguinte. Se quiser forçar a atualização em todos os aparelhos, suba o número em `const VERSAO` dentro do `sw.js`.
+
+Os dados nunca saem do Firestore para o cache. Sem internet, o app abre mas não carrega o acervo.
 
 ---
 
@@ -87,7 +107,6 @@ Constantes no topo do `<script>`:
 | `COLECAO` | `cartas` | Subcoleção com os registros |
 | `TAXA_PAD` | `13` | Taxa média de marketplace, em %, usada no cálculo do líquido |
 | `VALIDADE_COTACAO` | `90` | Dias até uma cotação ser marcada como antiga |
-| `API_KEY` | vazio | Chave opcional do pokemontcg.io, para limites maiores |
 
 ---
 
@@ -129,15 +148,17 @@ Cada documento em `usuarios/{uid}/cartas`:
 
 ---
 
-## Busca automática de cartas
+## Catálogo de cartas
 
-Usa a [API pública do pokemontcg.io](https://docs.pokemontcg.io), gratuita e sem chave obrigatória, limitada a mil requisições por dia sem autenticação.
+Usa a [API da TCGdex](https://tcgdex.dev), gratuita e sem chave, com base em `https://api.tcgdex.net/v2/{idioma}/`. Cobre cartas em português, inglês e japonês, entre outros idiomas, com imagens hospedadas em `assets.tcgdex.net`.
 
-A base cobre cartas em inglês. Para cartas em português ou japonês, busque pelo nome original — a arte e o número são os mesmos, então a imagem serve. Só o nome vem em inglês, e pode ser editado depois.
+O catálogo aparece em dois lugares:
+
+**No cadastro.** Escolha o idioma e a coleção, filtre pelo nome ou número, clique na miniatura. Preenche nome, coleção, número, raridade e imagem no idioma certo, e grava o vínculo com o catálogo.
+
+**Na aba Coleções.** Navegue uma coleção inteira e veja quais cartas já estão no seu acervo. O botão *Converter cartas já cadastradas* pareia registros antigos com a versão de outro idioma, pelo número, com conferência visual antes de aplicar.
 
 Nenhum preço é importado. Os campos de dinheiro ficam vazios de propósito, para você preencher em real com a cotação do mercado nacional.
-
-Se a API não responder, o cadastro manual continua funcionando normalmente e o campo de imagem aceita qualquer link.
 
 ---
 
