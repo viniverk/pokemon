@@ -426,9 +426,12 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <p class="sub" id="panelSub">Um registro por carta ou por lote idêntico.</p>
 
     <div class="lookup" id="lookup">
+      <div class="lrow" style="margin-bottom:8px">
+        <select id="qIdioma" style="flex:0 0 auto"></select>
+        <select id="qSet"><option value="">Carregando coleções…</option></select>
+      </div>
       <div class="lrow">
-        <input id="qBusca" placeholder="Buscar carta pelo nome em inglês" autocomplete="off">
-        <button type="button" class="go" id="btnBuscar">Buscar</button>
+        <input id="qBusca" placeholder="Filtrar por nome ou número" autocomplete="off">
       </div>
       <div class="hits" id="hits"></div>
     </div>
@@ -572,7 +575,6 @@ const RAIZ      = "usuarios";   // coleção raiz, uma pasta por conta
 const COLECAO   = "cartas";     // subcoleção com os registros
 const TAXA_PAD  = 13;           // taxa média de marketplace, em %
 const VALIDADE_COTACAO = 90;    // dias até a cotação ser marcada como velha
-const API_KEY   = "";           // opcional: chave grátis em dev.pokemontcg.io
 
 /* ========================================================= */
 
@@ -1140,7 +1142,12 @@ function abrir(item, forcarVenda){
   $("fFonte").value = i.fonte || "";
   $("fExtra").value = i.custoExtra ?? 0;
   $("fImg").value = i.img || "";
-  $("qBusca").value = ""; $("hits").innerHTML = ""; hits = [];
+  $("qBusca").value = "";
+  if (!$("qIdioma").options.length) {
+    $("qIdioma").innerHTML = Object.entries(IDIOMAS).map(([k,v]) =>
+      `<option value="${k}"${k==="pt"?" selected":""}>${v}</option>`).join("");
+    popularSetsPainel();
+  } else desenharHits();
   catalogo = item ? semVazios({ tcgdexId: i.tcgdexId, setId: i.setId, localId: i.localId }) : null;
   previewImg();
   $("fMerc").value = i.valorMercado ?? "";
@@ -1229,11 +1236,11 @@ async function salvar(continuar){
     editando = null;
     $("panelTitle").textContent = "Nova entrada";
     $("panelSub").textContent = "Coleção, data e local seguem preenchidos.";
-    ["fNome","fNum","fPreco","fMerc","fImg","fObs","fGradN","qBusca"].forEach(id => $(id).value = "");
+    ["fNome","fNum","fPreco","fMerc","fImg","fObs","fGradN"].forEach(id => $(id).value = "");
     $("fQtd").value = 1; $("fExtra").value = 0; $("fGradE").value = "";
-    $("hits").innerHTML = ""; hits = []; previewImg();
+    catalogo = null; previewImg(); desenharHits();
     $("btnExcluir").hidden = true;
-    $("qBusca").focus();
+    $("qBusca").focus(); $("qBusca").select();
     toast("Salvo. Manda a próxima.");
   } else {
     fechar();
@@ -1241,14 +1248,15 @@ async function salvar(continuar){
   }
 }
 
-/* ---------- busca de carta ---------- */
-let hits = [], catalogo = null;
+/* ---------- busca de carta no painel (TCGdex) ---------- */
+let hitsSet = null, catalogo = null;
 const MAPA_RAR = {
   "Common":"Comum","Uncommon":"Incomum","Rare":"Holo","Rare Holo":"Holo",
   "Double Rare":"V / ex","Ultra Rare":"Full Art","Rare Ultra":"Full Art",
   "Illustration Rare":"Full Art","Special Illustration Rare":"Special Illustration",
   "Hyper Rare":"Ouro / Hyper","Rare Secret":"Ouro / Hyper","Rare Rainbow":"Ouro / Hyper",
-  "Rare Holo V":"V / ex","Rare Holo VMAX":"V / ex","Rare Holo ex":"V / ex","Promo":"Promo"
+  "Rare Holo V":"V / ex","Rare Holo VMAX":"V / ex","Rare Holo ex":"V / ex","Promo":"Promo",
+  "Comum":"Comum","Incomum":"Incomum","Rara":"Holo","Rara Holo":"Holo","Promocional":"Promo"
 };
 
 function previewImg(){
@@ -1256,59 +1264,67 @@ function previewImg(){
   if (u) { el.src = u; el.style.display = "block"; } else { el.removeAttribute("src"); el.style.display = "none"; }
 }
 
-async function buscarCarta(){
-  const t = $("qBusca").value.trim();
-  if (!t) return;
-  const alvo = $("hits");
-  alvo.innerHTML = '<p class="hint">Procurando…</p>';
-  const termo = t.includes(" ") ? 'name:"'+t.replace(/"/g,"")+'"' : "name:"+t.replace(/[^\w-]/g,"")+"*";
+async function popularSetsPainel(){
+  const lang = $("qIdioma").value, sel = $("qSet"), atual = sel.value;
+  if (!nav.sets[lang]) sel.innerHTML = '<option value="">Carregando coleções…</option>';
   try {
-    const cab = API_KEY ? {"X-Api-Key":API_KEY} : {};
-    const r = await fetch("https://api.pokemontcg.io/v2/cards?pageSize=12&orderBy=-set.releaseDate&q="+encodeURIComponent(termo), {headers:cab});
-    if (!r.ok) throw new Error(r.status);
-    const j = await r.json();
-    hits = j.data || [];
-    if (!hits.length) { alvo.innerHTML = '<p class="hint">Nada encontrado. A base é de cartas em inglês — busque pelo nome original, mesmo que sua carta seja PT ou JP.</p>'; return; }
-    alvo.innerHTML = hits.map((c,n) =>
-      `<button type="button" class="hit" data-hit="${n}" title="${esc(c.name)}">
-         <img src="${esc(c.images.small)}" alt="${esc(c.name)}" loading="lazy">
-         <span>${esc(c.set.name)}<br>${esc(c.number)}</span>
-       </button>`).join("");
+    const lista = await pegarSets(lang);
+    sel.innerHTML = '<option value="">Escolha a coleção</option>' +
+      lista.map(x => `<option value="${esc(x.id)}">${esc(x.name)} — ${esc(x.id)}</option>`).join("");
+    if (atual && lista.some(x => x.id === atual)) { sel.value = atual; carregarSetPainel(); }
   } catch(e) {
     console.error(e);
-    alvo.innerHTML = '<p class="hint">A base não respondeu agora. Preencha na mão e, para a imagem, cole o link direto de onde você tiver a foto.</p>';
+    sel.innerHTML = '<option value="">Não consegui carregar as coleções</option>';
   }
 }
 
+async function carregarSetPainel(){
+  const lang = $("qIdioma").value, id = $("qSet").value;
+  if (!id) { hitsSet = null; $("hits").innerHTML = ""; return; }
+  $("hits").innerHTML = '<p class="hint">Carregando cartas…</p>';
+  try { hitsSet = await pegarSet(lang, id); desenharHits(); }
+  catch(e) { console.error(e); $("hits").innerHTML = '<p class="hint">Não consegui carregar essa coleção.</p>'; }
+}
+
+function desenharHits(){
+  if (!hitsSet) { $("hits").innerHTML = ""; return; }
+  const q = $("qBusca").value.trim().toLowerCase();
+  const total = hitsSet.cardCount?.official || hitsSet.cardCount?.total || "";
+  let lista = hitsSet.cards || [];
+  if (q) lista = lista.filter(c =>
+    String(c.name||"").toLowerCase().includes(q) ||
+    String(c.localId||"").toLowerCase().startsWith(q));
+
+  const corte = lista.slice(0, 60);
+  if (!corte.length) { $("hits").innerHTML = '<p class="hint">Nada encontrado nessa coleção.</p>'; return; }
+
+  $("hits").innerHTML = corte.map(c => `
+    <button type="button" class="hit" data-hit="${esc(c.id)}" title="${esc(c.name||"")}">
+      ${c.image ? `<img src="${esc(c.image)}/low.webp" alt="${esc(c.name||"")}" loading="lazy" onerror="this.remove()">`
+                : '<span class="semimg">sem imagem</span>'}
+      <span>${esc(c.localId||"")}${total?"/"+esc(total):""}</span>
+    </button>`).join("") +
+    (lista.length > corte.length
+      ? `<p class="hint" style="grid-column:1/-1">Mostrando 60 de ${lista.length}. Filtre pelo nome ou número.</p>` : "");
+}
+
 function usarHit(c){
-  $("fNome").value = c.name;
-  $("fSet").value = c.set.name;
-  $("fNum").value = c.number + "/" + (c.set.printedTotal || c.set.total || "");
-  $("fImg").value = c.images.large || c.images.small;
-  if (c.rarity && MAPA_RAR[c.rarity]) $("fRar").value = MAPA_RAR[c.rarity];
+  const d = hitsSet, lang = $("qIdioma").value;
+  const total = d.cardCount?.official || d.cardCount?.total || "";
+  $("fNome").value = c.name || "";
+  $("fSet").value = d.name || "";
+  $("fNum").value = (c.localId || "") + (total ? "/" + total : "");
+  $("fIdi").value = SIGLA[lang] || "PT";
+  $("fImg").value = c.image ? c.image + "/high.webp" : "";
+  catalogo = { tcgdexId: c.id, setId: d.id, localId: String(c.localId||"") };
   previewImg();
   toast("Ficha preenchida. Agora os valores em real.");
   $("fPreco").focus();
-}
 
-async function excluir(){
-  if (!editando) return;
-  if (!confirm("Excluir este registro? Não dá para desfazer.")) return;
-  try {
-    if (demo) itens = itens.filter(x => x.id !== editando); else await col().doc(editando).delete();
-    if (demo) render();
-    fechar();
-    toast("Registro excluído.");
-  } catch(e){ console.error(e); toast("Não consegui excluir."); }
-}
-
-async function atualizarCotacao(id, valor){
-  const patch = { valorMercado: parseFloat(valor)||0, dataCotacao: new Date().toISOString().slice(0,10) };
-  try {
-    if (demo) { itens = itens.map(x => x.id===id ? {...x,...patch} : x); render(); }
-    else await col().doc(id).set(patch, {merge:true});
-    toast("Cotação atualizada.");
-  } catch(e){ console.error(e); toast("Não consegui atualizar."); }
+  fetch(`${TCGDEX}/${lang}/cards/${encodeURIComponent(c.id)}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(f => { if (f && f.rarity && MAPA_RAR[f.rarity]) $("fRar").value = MAPA_RAR[f.rarity]; })
+    .catch(() => {});
 }
 
 /* ---------- exportar ---------- */
@@ -1365,13 +1381,17 @@ document.querySelector(".vista").addEventListener("click", e => {
 $("btnAdd").addEventListener("click", () => abrir(null,false));
 $("btnSalvar").addEventListener("click", () => salvar(false));
 $("btnSalvarMais").addEventListener("click", () => salvar(true));
-$("btnBuscar").addEventListener("click", buscarCarta);
-$("qBusca").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); buscarCarta(); } });
+$("qIdioma").addEventListener("change", () => { $("qSet").value = ""; hitsSet = null; $("hits").innerHTML = ""; popularSetsPainel(); });
+$("qSet").addEventListener("change", carregarSetPainel);
+$("qBusca").addEventListener("input", desenharHits);
+$("qBusca").addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
 $("fImg").addEventListener("input", previewImg);
 $("imgPrev").addEventListener("error", () => { $("imgPrev").style.display = "none"; });
 $("hits").addEventListener("click", e => {
   const b = e.target.closest("[data-hit]");
-  if (b && hits[b.dataset.hit]) usarHit(hits[b.dataset.hit]);
+  if (!b || !hitsSet) return;
+  const c = (hitsSet.cards||[]).find(x => x.id === b.dataset.hit);
+  if (c) usarHit(c);
 });
 $("btnCancelar").addEventListener("click", fechar);
 $("btnExcluir").addEventListener("click", excluir);
