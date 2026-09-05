@@ -189,6 +189,26 @@ button,input,select,textarea{font:inherit;color:inherit}
 .card.falta .ph img{opacity:.42}
 .card.falta:hover .ph img{opacity:.75}
 
+.cv-topo{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.cv-topo select{background:var(--slab);border:1px solid var(--edge);border-radius:8px;padding:8px 11px;color:var(--paper)}
+.cv-topo label{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px;cursor:pointer}
+.cv-topo input[type=checkbox]{accent-color:#8ab6ff;width:16px;height:16px}
+.cv-topo .ap{background:var(--paper);color:var(--ink);border:0;border-radius:8px;padding:8px 16px;font-weight:600;cursor:pointer}
+.cv-topo .vt{background:none;border:1px solid var(--edge);border-radius:8px;padding:8px 14px;color:var(--muted);cursor:pointer}
+.cv-row{
+  display:grid;grid-template-columns:20px minmax(0,1fr) 16px minmax(0,1fr);
+  gap:10px;align-items:center;border-bottom:1px solid var(--edge);padding:9px 0;
+}
+.cv-row input[type=checkbox]{accent-color:#8ab6ff;width:16px;height:16px}
+.cv-lado{display:flex;gap:9px;align-items:center;min-width:0}
+.cv-lado img{width:32px;height:45px;object-fit:cover;border-radius:3px;background:var(--slab);border:1px solid var(--edge);flex:none}
+.cv-lado .vazio{width:32px;height:45px;border-radius:3px;background:var(--slab);border:1px solid var(--edge);flex:none}
+.cv-lado .t{min-width:0}
+.cv-lado .t b{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-lado .t span{font-size:12px;color:var(--muted)}
+.cv-seta{color:var(--muted);text-align:center;font-size:13px}
+.cv-row.sem{opacity:.45}
+
 .empty{padding:56px 4px;color:var(--muted);max-width:52ch}
 .empty h3{font-size:20px;color:var(--paper);margin-bottom:8px}
 
@@ -827,7 +847,8 @@ const TCGDEX = "https://api.tcgdex.net/v2";
 const IDIOMAS = { pt: "PT-BR", en: "Inglês", ja: "Japonês" };
 const SIGLA = { pt: "PT", en: "EN", ja: "JP" };
 
-const nav = { lang: "ja", setId: "", soFalta: false, sets: {}, set: {}, carregando: false };
+const nav = { lang: "ja", setId: "", soFalta: false, sets: {}, set: {}, carregando: false, modo: "grade" };
+const conv = { origem: null, marcados: new Set(), nome: false };
 
 function tenho(c, setId){
   const local = String(c.localId || "");
@@ -879,7 +900,7 @@ function renderNavegador(){
   }
   const dados = nav.set[nav.lang + "/" + nav.setId];
   if (!dados) { $("navConteudo").innerHTML = '<p class="hint">Carregando cartas…</p>'; iniciarNavegador(); return; }
-  desenharSet(dados);
+  if (nav.modo === "conversao") desenharConversao(dados); else desenharSet(dados);
 }
 
 async function iniciarNavegador(){
@@ -907,10 +928,17 @@ function desenharSet(d){
     <div class="set-info">
       ${d.logo ? `<img src="${esc(d.logo)}.png" alt="" onerror="this.remove()">` : ""}
       <span>${esc(d.name)} · ${d.cards?.length || 0} cartas · você tem ${possuo}</span>
+      <button class="vt" id="btnConverter" style="margin-left:auto">Converter cartas já cadastradas</button>
     </div>`;
+
+  const ligarConverter = () => {
+    const b = $("btnConverter");
+    if (b) b.addEventListener("click", () => { nav.modo = "conversao"; conv.origem = null; conv.marcados.clear(); renderNavegador(); });
+  };
 
   if (!cartas.length) {
     $("navConteudo").innerHTML = cabecalho + `<div class="empty"><h3>Coleção completa</h3><p>Todas as cartas desta coleção já estão no seu acervo.</p></div>`;
+    ligarConverter();
     return;
   }
 
@@ -926,6 +954,108 @@ function desenharSet(d){
         <span class="cod">${esc(c.localId||"")}${total?"/"+esc(total):""}</span>
       </button>`;
   }).join("") + "</div>";
+  ligarConverter();
+}
+
+/* ---------- conversão de acervo já cadastrado ---------- */
+
+function paresConversao(d){
+  const alvos = new Map();
+  (d.cards || []).forEach(c => {
+    const k = chaveNumero(c.localId);
+    if (k.n !== Number.MAX_SAFE_INTEGER) alvos.set(k.pre + "|" + k.n, c);
+  });
+  return itens
+    .filter(i => (i.set || "—") === conv.origem && i.tipo !== "lacrado")
+    .sort((a,b) => chaveNumero(a.numero).n - chaveNumero(b.numero).n)
+    .map(i => {
+      const k = chaveNumero(i.numero);
+      return { item: i, alvo: alvos.get(k.pre + "|" + k.n) || null };
+    });
+}
+
+function camposConvertidos(c, d, total){
+  const o = {
+    set: d.name, setId: d.id, tcgdexId: c.id,
+    localId: String(c.localId || ""),
+    numero: (c.localId || "") + (total ? "/" + total : ""),
+    idioma: SIGLA[nav.lang] || "JP"
+  };
+  if (c.image) o.img = c.image + "/high.webp";
+  if (conv.nome && c.name) o.nome = c.name;
+  return o;
+}
+
+function desenharConversao(d){
+  const meusSets = [...new Set(itens.filter(i => i.tipo !== "lacrado").map(i => i.set || "—"))]
+    .sort((a,b) => a.localeCompare(b,"pt-BR"));
+  if (!conv.origem) conv.origem = meusSets[0] || "";
+
+  const pares = paresConversao(d);
+  const combinam = pares.filter(p => p.alvo);
+  if (!conv.marcados.size) combinam.forEach(p => conv.marcados.add(p.item.id));
+
+  const total = d.cardCount?.official || d.cardCount?.total || "";
+
+  $("navConteudo").innerHTML = `
+    <div class="cv-topo">
+      <select id="cvOrigem">${meusSets.map(x =>
+        `<option value="${esc(x)}"${x===conv.origem?" selected":""}>${esc(x)}</option>`).join("")}</select>
+      <span class="cv-seta">para</span>
+      <b>${esc(d.name)}</b>
+      <label><input type="checkbox" id="cvNome"${conv.nome?" checked":""}> Trocar o nome para japonês</label>
+      <button class="ap" id="cvAplicar">Converter ${conv.marcados.size}</button>
+      <button class="vt" id="cvVoltar">Voltar</button>
+    </div>
+    <p class="hint" style="margin:0 0 12px">O pareamento é pelo número da carta. Confira as imagens antes de aplicar — em algumas coleções a numeração japonesa não bate com a americana. Desmarque o que estiver errado.</p>
+    ${pares.length ? pares.map(p => {
+      const i = p.item, c = p.alvo;
+      const esq = `<span class="cv-lado">${i.img ? `<img src="${esc(i.img)}" alt="" loading="lazy" onerror="this.remove()">` : '<span class="vazio"></span>'}<span class="t"><b>${esc(i.nome||"—")}</b><span>${esc(i.numero||"")} · ${esc(i.idioma||"")}</span></span></span>`;
+      const dir = c
+        ? `<span class="cv-lado">${c.image ? `<img src="${esc(c.image)}/low.webp" alt="" loading="lazy" onerror="this.remove()">` : '<span class="vazio"></span>'}<span class="t"><b>${esc(c.name||"—")}</b><span>${esc(c.localId||"")}${total?"/"+esc(total):""} · ${esc(SIGLA[nav.lang])}</span></span></span>`
+        : `<span class="cv-lado"><span class="vazio"></span><span class="t"><b>Sem correspondência</b><span>número não existe nesta coleção</span></span></span>`;
+      return `<div class="cv-row ${c?"":"sem"}">
+        <input type="checkbox" data-cv="${i.id}"${c ? (conv.marcados.has(i.id)?" checked":"") : " disabled"}>
+        ${esq}<span class="cv-seta">→</span>${dir}
+      </div>`;
+    }).join("") : '<div class="empty"><h3>Nada para converter</h3><p>Não há cartas avulsas cadastradas nessa coleção de origem.</p></div>'}`;
+
+  $("cvOrigem").addEventListener("change", e => { conv.origem = e.target.value; conv.marcados.clear(); renderNavegador(); });
+  $("cvNome").addEventListener("change", e => { conv.nome = e.target.checked; });
+  $("cvVoltar").addEventListener("click", () => { nav.modo = "grade"; renderNavegador(); });
+  $("cvAplicar").addEventListener("click", () => aplicarConversao(d));
+  $("navConteudo").addEventListener("change", e => {
+    const cb = e.target.closest("[data-cv]"); if (!cb) return;
+    if (cb.checked) conv.marcados.add(cb.dataset.cv); else conv.marcados.delete(cb.dataset.cv);
+    $("cvAplicar").textContent = "Converter " + conv.marcados.size;
+  });
+}
+
+async function aplicarConversao(d){
+  const total = d.cardCount?.official || d.cardCount?.total || "";
+  const alvo = paresConversao(d).filter(p => p.alvo && conv.marcados.has(p.item.id));
+  if (!alvo.length) { toast("Nenhuma carta marcada."); return; }
+  if (!confirm(`Vou atualizar ${alvo.length} registro(s) para a coleção ${d.name}. Os valores em real não mudam. Continuar?`)) return;
+
+  try {
+    if (demo) {
+      itens = itens.map(x => {
+        const p = alvo.find(y => y.item.id === x.id);
+        return p ? { ...x, ...camposConvertidos(p.alvo, d, total) } : x;
+      });
+      render();
+    } else {
+      for (let k = 0; k < alvo.length; k += 400) {
+        const lote = db.batch();
+        alvo.slice(k, k+400).forEach(p => lote.set(col().doc(p.item.id), camposConvertidos(p.alvo, d, total), {merge:true}));
+        await lote.commit();
+      }
+    }
+    conv.marcados.clear();
+    nav.modo = "grade";
+    toast(alvo.length + " cartas convertidas.");
+    if (demo) renderNavegador();
+  } catch(e){ console.error(e); toast("Não consegui aplicar a conversão."); }
 }
 
 function novaDoCatalogo(cardId){
