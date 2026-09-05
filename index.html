@@ -170,6 +170,25 @@ button,input,select,textarea{font:inherit;color:inherit}
 .card:hover .ph,.card:focus-visible .ph{border-color:#8ab6ff}
 .card:focus-visible{outline:none}
 
+.nav-set{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.nav-set select,.nav-set input{background:var(--slab);border:1px solid var(--edge);border-radius:8px;padding:8px 11px;color:var(--paper)}
+.nav-set select{max-width:100%}
+.nav-set .so-falta{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:14px;cursor:pointer}
+.nav-set .so-falta input{accent-color:#8ab6ff;width:16px;height:16px;padding:0}
+.set-info{display:flex;align-items:center;gap:12px;margin-bottom:14px;color:var(--muted);font-size:14px}
+.set-info img{height:34px;width:auto}
+.card.tem .ph{border-color:var(--gain)}
+.card.tem .ph::after{
+  content:"";position:absolute;inset:0;
+  box-shadow:inset 0 0 0 2px var(--gain);border-radius:6px;pointer-events:none;
+}
+.card .marca{
+  position:absolute;top:5px;left:5px;background:var(--gain);color:#0c2b22;
+  border-radius:5px;font-size:11px;font-weight:600;padding:1px 6px;
+}
+.card.falta .ph img{opacity:.42}
+.card.falta:hover .ph img{opacity:.75}
+
 .empty{padding:56px 4px;color:var(--muted);max-width:52ch}
 .empty h3{font-size:20px;color:var(--paper);margin-bottom:8px}
 
@@ -345,6 +364,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
   <nav class="tabs" id="tabs">
     <button data-tab="avulsa" aria-selected="true">Avulsas <span class="count" id="cAvulsa"></span></button>
     <button data-tab="lacrado" aria-selected="false">Lacrado <span class="count" id="cLacrado"></span></button>
+    <button data-tab="colecoes" aria-selected="false">Coleções</button>
     <button data-tab="cotacao" aria-selected="false">Cotação</button>
     <button data-tab="vendas" aria-selected="false">Vendas <span class="count" id="cVendas"></span></button>
     <button data-tab="resumo" aria-selected="false">Resumo</button>
@@ -539,6 +559,7 @@ const API_KEY   = "";           // opcional: chave grátis em dev.pokemontcg.io
 const BRL = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"});
 const money = v => BRL.format(Number(v)||0);
 const $ = id => document.getElementById(id);
+const semVazios = o => Object.fromEntries(Object.entries(o).filter(([,v]) => v !== undefined && v !== null && v !== ""));
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 let db = null, auth = null, uid = null, parar = null;
@@ -662,8 +683,9 @@ function render(){
   $("cVendas").textContent  = vendidos.length;
 
   popularSets();
-  $("tools").style.display = (aba==="resumo") ? "none" : "flex";
+  $("tools").style.display = (aba==="resumo" || aba==="colecoes") ? "none" : "flex";
 
+  if (aba === "colecoes") return renderNavegador();
   if (aba === "resumo")  return renderResumo(ativos, vendidos);
   if (aba === "cotacao") return renderCotacao(ativos);
   if (aba === "vendas")  return renderLista(vendidos, true);
@@ -800,6 +822,131 @@ function renderCotacao(ativos){
       </div>`).join("");
 }
 
+/* ================= navegador de coleções (TCGdex) ================= */
+const TCGDEX = "https://api.tcgdex.net/v2";
+const IDIOMAS = { pt: "PT-BR", en: "Inglês", ja: "Japonês" };
+const SIGLA = { pt: "PT", en: "EN", ja: "JP" };
+
+const nav = { lang: "ja", setId: "", soFalta: false, sets: {}, set: {}, carregando: false };
+
+function tenho(c, setId){
+  const local = String(c.localId || "");
+  return itens.some(i =>
+    (i.tcgdexId && i.tcgdexId === c.id) ||
+    (i.setId === setId && String(i.localId||"") === local)
+  );
+}
+
+async function pegarSets(lang){
+  if (nav.sets[lang]) return nav.sets[lang];
+  const r = await fetch(`${TCGDEX}/${lang}/sets`);
+  if (!r.ok) throw new Error(r.status);
+  const lista = await r.json();
+  nav.sets[lang] = lista.filter(x => (x.cardCount?.total || 0) > 0).reverse();
+  return nav.sets[lang];
+}
+
+async function pegarSet(lang, id){
+  const chave = lang + "/" + id;
+  if (nav.set[chave]) return nav.set[chave];
+  const r = await fetch(`${TCGDEX}/${lang}/sets/${encodeURIComponent(id)}`);
+  if (!r.ok) throw new Error(r.status);
+  nav.set[chave] = await r.json();
+  return nav.set[chave];
+}
+
+function renderNavegador(){
+  const opcoes = (nav.sets[nav.lang] || []).map(x =>
+    `<option value="${esc(x.id)}"${x.id===nav.setId?" selected":""}>${esc(x.name)} — ${esc(x.id)}</option>`).join("");
+
+  $("conteudo").innerHTML = `
+    <div class="nav-set">
+      <select id="bIdioma">${Object.entries(IDIOMAS).map(([k,v]) =>
+        `<option value="${k}"${k===nav.lang?" selected":""}>${v}</option>`).join("")}</select>
+      <select id="bSet"><option value="">${nav.sets[nav.lang] ? "Escolha a coleção" : "Carregando coleções…"}</option>${opcoes}</select>
+      <label class="so-falta"><input type="checkbox" id="bFalta"${nav.soFalta?" checked":""}> Só o que falta</label>
+    </div>
+    <div id="navConteudo"></div>`;
+
+  $("bIdioma").addEventListener("change", e => { nav.lang = e.target.value; nav.setId = ""; iniciarNavegador(); });
+  $("bSet").addEventListener("change", e => { nav.setId = e.target.value; iniciarNavegador(); });
+  $("bFalta").addEventListener("change", e => { nav.soFalta = e.target.checked; renderNavegador(); });
+
+  if (!nav.sets[nav.lang]) { iniciarNavegador(); return; }
+  if (!nav.setId) {
+    $("navConteudo").innerHTML = `<div class="empty"><h3>Escolha uma coleção</h3><p>São ${nav.sets[nav.lang].length} coleções em ${IDIOMAS[nav.lang].toLowerCase()}. Escolhendo uma, você vê todas as cartas dela e quais já estão no seu acervo.</p></div>`;
+    return;
+  }
+  const dados = nav.set[nav.lang + "/" + nav.setId];
+  if (!dados) { $("navConteudo").innerHTML = '<p class="hint">Carregando cartas…</p>'; iniciarNavegador(); return; }
+  desenharSet(dados);
+}
+
+async function iniciarNavegador(){
+  if (nav.carregando) return;
+  nav.carregando = true;
+  try {
+    await pegarSets(nav.lang);
+    if (nav.setId) await pegarSet(nav.lang, nav.setId);
+    nav.carregando = false;
+    if (aba === "colecoes") renderNavegador();
+  } catch (e) {
+    nav.carregando = false;
+    console.error(e);
+    const alvo = $("navConteudo") || $("conteudo");
+    alvo.innerHTML = '<p class="hint">Não consegui falar com a base de cartas agora. Tente de novo em instantes.</p>';
+  }
+}
+
+function desenharSet(d){
+  const total = d.cardCount?.official || d.cardCount?.total || "";
+  const cartas = (d.cards || []).filter(c => !nav.soFalta || !tenho(c, d.id));
+  const possuo = (d.cards || []).filter(c => tenho(c, d.id)).length;
+
+  const cabecalho = `
+    <div class="set-info">
+      ${d.logo ? `<img src="${esc(d.logo)}.png" alt="" onerror="this.remove()">` : ""}
+      <span>${esc(d.name)} · ${d.cards?.length || 0} cartas · você tem ${possuo}</span>
+    </div>`;
+
+  if (!cartas.length) {
+    $("navConteudo").innerHTML = cabecalho + `<div class="empty"><h3>Coleção completa</h3><p>Todas as cartas desta coleção já estão no seu acervo.</p></div>`;
+    return;
+  }
+
+  $("navConteudo").innerHTML = cabecalho + '<div class="grade">' + cartas.map(c => {
+    const meu = tenho(c, d.id);
+    const foto = c.image
+      ? `<img src="${esc(c.image)}/low.webp" alt="${esc(c.name||"")}" loading="lazy" onerror="this.remove()">`
+      : `<span class="semimg">${esc(c.name||"sem imagem")}</span>`;
+    return `
+      <button class="card ${meu?"tem":"falta"}" data-nova="${esc(c.id)}" title="${esc(c.name||"")}">
+        <span class="ph">${foto}${meu ? '<span class="marca">tenho</span>' : ""}</span>
+        <span class="nm">${esc(c.name||"—")}</span>
+        <span class="cod">${esc(c.localId||"")}${total?"/"+esc(total):""}</span>
+      </button>`;
+  }).join("") + "</div>";
+}
+
+function novaDoCatalogo(cardId){
+  const d = nav.set[nav.lang + "/" + nav.setId];
+  if (!d) return;
+  const c = (d.cards || []).find(x => x.id === cardId);
+  if (!c) return;
+  const total = d.cardCount?.official || d.cardCount?.total || "";
+
+  abrir(null, false);
+  $("fNome").value = c.name || "";
+  $("fSet").value = d.name || "";
+  $("fNum").value = (c.localId || "") + (total ? "/" + total : "");
+  $("fIdi").value = SIGLA[nav.lang] || "PT";
+  $("fImg").value = c.image ? c.image + "/high.webp" : "";
+  previewImg();
+  catalogo = { tcgdexId: c.id, setId: d.id, localId: String(c.localId||"") };
+  $("panelSub").textContent = `${d.name} · ${c.localId||""} · ${IDIOMAS[nav.lang]}`;
+  $("fPreco").focus();
+}
+
 function renderResumo(ativos, vendidos){
   const grupo = (chave, rotulos) => {
     const m = {};
@@ -864,6 +1011,7 @@ function abrir(item, forcarVenda){
   $("fExtra").value = i.custoExtra ?? 0;
   $("fImg").value = i.img || "";
   $("qBusca").value = ""; $("hits").innerHTML = ""; hits = [];
+  catalogo = item ? semVazios({ tcgdexId: i.tcgdexId, setId: i.setId, localId: i.localId }) : null;
   previewImg();
   $("fMerc").value = i.valorMercado ?? "";
   $("fCot").value = i.dataCotacao || "";
@@ -907,6 +1055,7 @@ function coletar(){
     fonte: $("fFonte").value.trim(),
     custoExtra: parseFloat($("fExtra").value)||0,
     img: $("fImg").value.trim(),
+    ...(catalogo || {}),
     valorMercado: parseFloat($("fMerc").value)||0,
     dataCotacao: $("fCot").value,
     balde: $("fBal").value,
@@ -963,7 +1112,7 @@ async function salvar(continuar){
 }
 
 /* ---------- busca de carta ---------- */
-let hits = [];
+let hits = [], catalogo = null;
 const MAPA_RAR = {
   "Common":"Comum","Uncommon":"Incomum","Rare":"Holo","Rare Holo":"Holo",
   "Double Rare":"V / ex","Ultra Rare":"Full Art","Rare Ultra":"Full Art",
@@ -1158,6 +1307,8 @@ $("fileIn").addEventListener("change", e => { if (e.target.files[0]) restaurar(e
 document.addEventListener("keydown", e => { if (e.key === "Escape") fechar(); });
 
 $("conteudo").addEventListener("click", e => {
+  const nv = e.target.closest("[data-nova]");
+  if (nv) { novaDoCatalogo(nv.dataset.nova); return; }
   const ed = e.target.closest("[data-edit]"), sv = e.target.closest("[data-sell]");
   if (ed) abrir(itens.find(i => i.id === ed.dataset.edit), false);
   if (sv) abrir(itens.find(i => i.id === sv.dataset.sell), true);
