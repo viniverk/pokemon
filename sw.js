@@ -3,14 +3,18 @@
    Assim uma edição no index.html aparece na próxima abertura, sem ficar
    presa numa versão antiga. Suba o número da versão ao publicar mudanças. */
 
-const VERSAO = "cartas-v6";
+const VERSAO = "cartas-v7";
 
 const CASCA = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./icon-mask-192.png",
+  "./icon-mask-512.png",
+  "./apple-touch-icon.png",
+  "./favicon.png"
 ];
 
 self.addEventListener("install", e => {
