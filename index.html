@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cartas">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
@@ -331,7 +331,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
 
 <div id="login">
   <div class="login-card">
-    <div class="holo"></div>
+    <img src="icon-192.png" alt="" width="72" height="72" style="border-radius:16px;display:block;margin-bottom:16px">
     <h2>Registro de cartas</h2>
     <p class="sub">Entre para ver seu acervo. Só a sua conta enxerga estes registros.</p>
     <input id="logEmail" type="email" placeholder="E-mail" autocomplete="username">
@@ -350,6 +350,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <button id="btnExport">Exportar CSV</button>
     <button id="btnBackup">Backup</button>
     <button id="btnRestore">Restaurar</button>
+    <button id="btnInstalarBarra" hidden>Instalar app</button>
     <button id="btnSair" hidden>Sair</button>
     <input type="file" id="fileIn" accept="application/json" hidden>
   </div>
@@ -1434,6 +1435,11 @@ function dispensar(){
   $("instalar").classList.remove("on");
 }
 
+function mostrarBotaoBarra(){
+  if (!jaInstalado) $("btnInstalarBarra").hidden = false;
+}
+mostrarBotaoBarra();
+
 if (!jaInstalado && !dispensado()) {
   if (iOS) {
     $("instalarTexto").innerHTML = "<b>Deixe na tela de início.</b> Toque em Compartilhar, no rodapé do Safari, e escolha Adicionar à Tela de Início.";
@@ -1443,6 +1449,7 @@ if (!jaInstalado && !dispensado()) {
   window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault();
     promptInstalar = e;
+    mostrarBotaoBarra();
     $("instalarTexto").innerHTML = "<b>Instale no celular.</b> Abre em tela cheia, com ícone próprio, sem a barra do navegador.";
     $("btnInstalar").hidden = false;
     $("instalar").classList.add("on");
@@ -1451,16 +1458,26 @@ if (!jaInstalado && !dispensado()) {
 
 window.addEventListener("appinstalled", () => {
   $("instalar").classList.remove("on");
+  $("btnInstalarBarra").hidden = true;
   toast("Instalado. Procure o ícone na tela de início.");
 });
 
-$("btnInstalar").addEventListener("click", async () => {
-  if (!promptInstalar) return;
-  promptInstalar.prompt();
-  const r = await promptInstalar.userChoice;
-  promptInstalar = null;
-  if (r.outcome !== "accepted") dispensar();
-});
+async function instalarApp(){
+  if (promptInstalar) {
+    promptInstalar.prompt();
+    const r = await promptInstalar.userChoice;
+    promptInstalar = null;
+    if (r.outcome !== "accepted") dispensar();
+    return;
+  }
+  if (iOS) {
+    toast("No iPhone: toque em Compartilhar e escolha Adicionar à Tela de Início.");
+  } else {
+    toast("Use o ícone de instalação na barra de endereço, ou o menu do navegador → Instalar.");
+  }
+}
+$("btnInstalar").addEventListener("click", instalarApp);
+$("btnInstalarBarra").addEventListener("click", instalarApp);
 $("btnInstalarNao").addEventListener("click", dispensar);
 
 if ("serviceWorker" in navigator) {
