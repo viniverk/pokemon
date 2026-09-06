@@ -3,7 +3,7 @@
    Assim uma edição no index.html aparece na próxima abertura, sem ficar
    presa numa versão antiga. Suba o número da versão ao publicar mudanças. */
 
-const VERSAO = "cartas-v7";
+const VERSAO = "cartas-v8";
 
 const CASCA = [
   "./",
@@ -14,7 +14,8 @@ const CASCA = [
   "./icon-mask-192.png",
   "./icon-mask-512.png",
   "./apple-touch-icon.png",
-  "./favicon.png"
+  "./favicon.png",
+  "./logo.png"
 ];
 
 self.addEventListener("install", e => {
