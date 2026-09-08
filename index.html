@@ -340,6 +340,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <input id="logSenha" type="password" placeholder="Senha" autocomplete="current-password">
     <p class="login-erro" id="logErro"></p>
     <button id="btnEntrar">Entrar</button>
+    <button id="btnFecharLogin" style="background:none;border:1px solid var(--edge);color:var(--muted);margin-top:10px">Voltar para a coleção</button>
   </div>
 </div>
 
@@ -354,6 +355,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <button id="btnBackup">Backup</button>
     <button id="btnRestore">Restaurar</button>
     <button id="btnInstalarBarra" hidden>Instalar app</button>
+    <button id="btnEntrarBarra" hidden>Entrar</button>
     <button id="btnSair" hidden>Sair</button>
     <input type="file" id="fileIn" accept="application/json" hidden>
   </div>
@@ -367,7 +369,7 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
     <button class="no" id="btnInstalarNao">Agora não</button>
   </div>
 
-  <section class="pos">
+  <section class="pos" id="secaoPos">
     <div class="pos-head">
       <h2>Posição do acervo</h2>
       <span class="pos-res num" id="posRes"></span>
@@ -575,6 +577,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "89745623408",
   appId: "1:89745623408:web:0e143cc8457d417174e7b5"
 };
+const DONO      = "6CWzVPPH4SQ86J46l3N4S6NsuQ63"; // UID do dono da coleção
 const RAIZ      = "usuarios";   // coleção raiz, uma pasta por conta
 const COLECAO   = "cartas";     // subcoleção com os registros
 const TAXA_PAD  = 13;           // taxa média de marketplace, em %
@@ -589,7 +592,7 @@ const semVazios = o => Object.fromEntries(Object.entries(o).filter(([,v]) => v !
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 let db = null, auth = null, uid = null, parar = null;
-let demo = false, itens = [], aba = "avulsa", vista = "lista", editando = null;
+let demo = false, souDono = false, itens = [], aba = "avulsa", vista = "lista", editando = null;
 
 const col = () => db.collection(RAIZ).doc(uid).collection(COLECAO);
 
@@ -605,7 +608,7 @@ const MSG_AUTH = {
 
 /* ---------- conexão ---------- */
 if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
-  demo = true;
+  demo = true; souDono = true;
   $("mode").textContent = "modo demonstração";
   itens = amostras();
   render();
@@ -616,8 +619,13 @@ if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
     auth = firebase.auth();
     auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
     auth.onAuthStateChanged(u => {
-      if (u) { uid = u.uid; travar(false); ouvir(); }
-      else   { uid = null; if (parar) { parar(); parar = null; } itens = []; render(); travar(true); }
+      if (parar) { parar(); parar = null; }
+      souDono = !!u && u.uid === DONO;
+      uid = souDono ? u.uid : DONO;
+      travar(false);
+      aplicarPermissoes();
+      if (!DONO) { $("mode").textContent = "falta configurar o UID do dono"; itens = []; render(); }
+      else ouvir();
     });
   } catch (e) {
     demo = true;
@@ -628,11 +636,28 @@ if (FIREBASE_CONFIG.apiKey === "COLE_AQUI") {
   }
 }
 
-function travar(bloqueado){
-  $("login").classList.toggle("on", bloqueado);
-  $("btnSair").hidden = bloqueado;
-  $("mode").textContent = bloqueado ? "" : "sincronizado";
-  if (bloqueado) { $("logSenha").value = ""; setTimeout(()=>$("logEmail").focus(), 80); }
+function travar(mostrarLogin){
+  $("login").classList.toggle("on", mostrarLogin);
+  if (mostrarLogin) { $("logSenha").value = ""; $("logErro").textContent = ""; setTimeout(()=>$("logEmail").focus(), 80); }
+}
+
+/* Visitante vê as cartas; dono vê os números e edita. */
+function aplicarPermissoes(){
+  $("mode").textContent = souDono ? "sincronizado" : "visitando";
+  $("btnSair").hidden = !souDono;
+  $("btnEntrarBarra").hidden = souDono;
+  $("btnAdd").hidden = !souDono;
+  $("secaoPos").hidden = !souDono;
+  ["btnExport","btnBackup","btnRestore"].forEach(x => $(x).hidden = !souDono);
+  ["cotacao","vendas","resumo"].forEach(t => {
+    const b = document.querySelector(`[data-tab="${t}"]`);
+    if (b) b.hidden = !souDono;
+  });
+  if (!souDono && ["cotacao","vendas","resumo"].includes(aba)) {
+    aba = "avulsa";
+    [...$("tabs").children].forEach(x => x.setAttribute("aria-selected", x.dataset.tab === "avulsa"));
+  }
+  render();
 }
 
 function ouvir(){
@@ -649,6 +674,7 @@ async function entrar(){
   try {
     await auth.signInWithEmailAndPassword(e, senha);
     $("logErro").textContent = "";
+    travar(false);
   } catch (err) {
     console.error(err);
     $("logErro").textContent = MSG_AUTH[err.code] || "Não consegui entrar. Tente de novo.";
@@ -770,13 +796,14 @@ function renderGrade(r, vendaView){
     const foto = i.img
       ? `<img src="${esc(i.img)}" alt="${esc(i.nome||"")}" loading="lazy" onerror="this.remove()">`
       : `<span class="semimg">${esc(i.nome||"sem imagem")}</span>`;
+    const abre = souDono ? `data-edit="${i.id}"` : "";
     return `
-      <button class="card" data-edit="${i.id}" title="${esc(i.nome||"")}">
+      <button class="card" ${abre} title="${esc(i.nome||"")}">
         <span class="ph">${foto}${q>1 ? `<span class="selo num">${q}×</span>` : ""}</span>
-        <span class="fx flag ${esc(i.balde||"giro")}"></span>
+        ${souDono ? `<span class="fx flag ${esc(i.balde||"giro")}"></span>` : ""}
         <span class="nm">${esc(i.nome||"Sem nome")}</span>
         <span class="cod">${esc(i.numero || i.set || "—")}</span>
-        <span class="val num">${money(preco)}</span>
+        ${souDono ? `<span class="val num">${money(preco)}</span>` : ""}
       </button>`;
   }).join("") + "</div>";
 }
@@ -797,7 +824,7 @@ function renderLista(lista, vendaView){
       i.set, i.numero, i.idioma,
       i.tipo === "avulsa" ? i.condicao : null,
       q > 1 ? q+" un." : null,
-      i.local
+      souDono ? i.local : null
     ].filter(Boolean).map(esc).join(" · ");
 
     const chips = [];
@@ -817,14 +844,14 @@ function renderLista(lista, vendaView){
         <div class="title">${esc(i.nome||"Sem nome")} ${chips.join(" ")}</div>
         <div class="meta">${meta}</div>
       </div>
-      <div class="money">
+      ${souDono ? `<div class="money">
         <div class="mv num">${money(m)}</div>
         <div class="delta num ${cls}">${dv>=0?"+":""}${money(dv)} · ${dv>=0?"+":""}${pct.toFixed(0)}%</div>
         <div class="acts">
           <button data-edit="${i.id}">Editar</button>
           ${vendaView ? "" : '<button data-sell="'+i.id+'">Vender</button>'}
         </div>
-      </div>
+      </div>` : ""}
     </div>`;
   }).join("") + "</div>";
 }
@@ -941,6 +968,7 @@ function desenharSet(d){
 
   const ligarConverter = () => {
     const b = $("btnConverter");
+    if (b && !souDono) { b.remove(); return; }
     if (b) b.addEventListener("click", () => { nav.modo = "conversao"; conv.origem = null; conv.marcados.clear(); renderNavegador(); });
   };
 
@@ -956,7 +984,7 @@ function desenharSet(d){
       ? `<img src="${esc(c.image)}/low.webp" alt="${esc(c.name||"")}" loading="lazy" onerror="this.remove()">`
       : `<span class="semimg">${esc(c.name||"sem imagem")}</span>`;
     return `
-      <button class="card ${meu?"tem":"falta"}" data-nova="${esc(c.id)}" title="${esc(c.name||"")}">
+      <button class="card ${meu?"tem":"falta"}" ${souDono?`data-nova="${esc(c.id)}"`:""} title="${esc(c.name||"")}">
         <span class="ph">${foto}${meu ? '<span class="marca">tenho</span>' : ""}</span>
         <span class="nm">${esc(c.name||"—")}</span>
         <span class="cod">${esc(c.localId||"")}${total?"/"+esc(total):""}</span>
@@ -1129,6 +1157,7 @@ function renderResumo(ativos, vendidos){
 
 /* ---------- painel ---------- */
 function abrir(item, forcarVenda){
+  if (!souDono) return;
   editando = item ? item.id : null;
   const i = item || {};
   $("panelTitle").textContent = item ? "Editar registro" : "Nova entrada";
@@ -1222,6 +1251,7 @@ function coletar(){
 }
 
 async function salvar(continuar){
+  if (!souDono) return;
   const o = coletar();
   if (!o.nome) { toast("Dê um nome ao registro antes de salvar."); $("fNome").focus(); return; }
   if (o.valorMercado && !o.dataCotacao) o.dataCotacao = new Date().toISOString().slice(0,10);
@@ -1255,7 +1285,7 @@ async function salvar(continuar){
 }
 
 async function excluir(){
-  if (!editando) return;
+  if (!souDono || !editando) return;
   if (!confirm("Excluir este registro? Não dá para desfazer.")) return;
   const era = editando;
   try {
@@ -1267,6 +1297,7 @@ async function excluir(){
 }
 
 async function atualizarCotacao(id, valor){
+  if (!souDono) return;
   const patch = { valorMercado: parseFloat(valor)||0, dataCotacao: new Date().toISOString().slice(0,10) };
   try {
     if (demo) { itens = itens.map(x => x.id===id ? {...x,...patch} : x); render(); }
@@ -1493,6 +1524,8 @@ $("btnEntrar").addEventListener("click", entrar);
 $("logSenha").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
 $("logEmail").addEventListener("keydown", e => { if (e.key === "Enter") $("logSenha").focus(); });
 $("btnSair").addEventListener("click", () => { if (auth) auth.signOut(); });
+$("btnEntrarBarra").addEventListener("click", () => travar(true));
+$("btnFecharLogin").addEventListener("click", () => travar(false));
 $("btnExport").addEventListener("click", exportarCSV);
 $("btnBackup").addEventListener("click", backup);
 $("btnRestore").addEventListener("click", () => $("fileIn").click());
