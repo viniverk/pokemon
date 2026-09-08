@@ -3,7 +3,7 @@
    Assim uma edição no index.html aparece na próxima abertura, sem ficar
    presa numa versão antiga. Suba o número da versão ao publicar mudanças. */
 
-const VERSAO = "cartas-v8";
+const VERSAO = "cartas-v10";
 
 const CASCA = [
   "./",
