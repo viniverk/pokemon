@@ -135,6 +135,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 .chip.slab{border-color:#6b5cff;color:#b3a8ff}
 .chip.stale{border-color:#7a5a2a;color:#e0a95c}
+.chip.rep{border-color:#2f6a8f;color:#7cc4ee}
+.selo.rep{border-color:#2f6a8f;color:#7cc4ee}
 .row .money{padding:12px 0;text-align:right;white-space:nowrap}
 .row .mv{font-weight:600}
 .row .delta{font-size:13px}
@@ -407,10 +409,16 @@ legend{color:var(--muted);font-size:13px;font-weight:600;padding-right:10px}
       <option value="">Todos os grupos</option>
       <option value="acervo">Acervo</option><option value="giro">Giro</option><option value="bulk">Bulk</option>
     </select>
+    <select id="fRep">
+      <option value="">Repetidas e únicas</option>
+      <option value="rep">Só repetidas</option>
+      <option value="uni">Só únicas</option>
+    </select>
     <select id="fOrd">
       <option value="valor">Maior valor</option>
       <option value="lucro">Maior ganho %</option>
       <option value="numero">Número da carta</option>
+      <option value="copias">Mais cópias</option>
       <option value="recente">Compra recente</option>
       <option value="nome">Nome</option>
     </select>
@@ -593,6 +601,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">"
 
 let db = null, auth = null, uid = null, parar = null;
 let demo = false, souDono = false, itens = [], aba = "avulsa", vista = "lista", editando = null;
+let repetidas = new Map();
 
 const col = () => db.collection(RAIZ).doc(uid).collection(COLECAO);
 
@@ -736,6 +745,7 @@ function render(){
   $("cLacrado").textContent = ativos.filter(i=>i.tipo==="lacrado").reduce((s,i)=>s+(Number(i.qtd)||1),0);
   $("cVendas").textContent  = vendidos.length;
 
+  repetidas = contarCopias(ativos);
   popularSets();
   $("tools").style.display = (aba==="resumo" || aba==="colecoes") ? "none" : "flex";
 
@@ -756,10 +766,34 @@ function chaveNumero(v){
            : { pre: t.toUpperCase(), n: Number.MAX_SAFE_INTEGER };
 }
 
+/* Conta quantas cópias de cada carta existem no acervo, somando registros
+   diferentes. O vínculo com o catálogo é a chave preferida; sem ele, cai
+   para coleção + número + idioma. A variável é declarada junto do estado,
+   lá em cima, porque render() pode rodar antes deste ponto do script. */
+function chaveCarta(i){
+  if (i.tcgdexId) return "id:" + i.tcgdexId;
+  const k = chaveNumero(i.numero);
+  return "n:" + String(i.set||"").toLowerCase() + "|" + k.pre + k.n + "|" + (i.idioma||"");
+}
+
+function contarCopias(lista){
+  const m = new Map();
+  lista.forEach(i => {
+    const k = chaveCarta(i);
+    m.set(k, (m.get(k)||0) + (Number(i.qtd)||1));
+  });
+  return m;
+}
+
+function copias(i){ return repetidas.get(chaveCarta(i)) || (Number(i.qtd)||1); }
+
 function filtrar(lista){
   const q = $("busca").value.trim().toLowerCase();
-  const fi = $("fIdioma").value, fb = $("fBalde").value, ord = $("fOrd").value, fs = $("fSetF").value;
+  const fi = $("fIdioma").value, fb = $("fBalde").value, ord = $("fOrd").value;
+  const fs = $("fSetF").value, fr = $("fRep").value;
   let r = lista.filter(i => {
+    if (fr === "rep" && copias(i) < 2) return false;
+    if (fr === "uni" && copias(i) > 1) return false;
     if (fi && i.idioma !== fi) return false;
     if (fb && i.balde !== fb) return false;
     if (fs && i.set !== fs) return false;
@@ -776,6 +810,7 @@ function filtrar(lista){
     },
     lucro:  (a,b) => (custo(b)?(mercado(b)-custo(b))/custo(b):0) - (custo(a)?(mercado(a)-custo(a))/custo(a):0),
     recente:(a,b) => String(b.dataCompra||"").localeCompare(String(a.dataCompra||"")),
+    copias: (a,b) => copias(b) - copias(a) || mercado(b) - mercado(a),
     nome:   (a,b) => String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR")
   }[ord];
   return r.sort(cmp);
@@ -791,7 +826,7 @@ function popularSets(){
 
 function renderGrade(r, vendaView){
   $("conteudo").innerHTML = '<div class="grade">' + r.map(i => {
-    const q = Number(i.qtd)||1;
+    const nc = vendaView ? 1 : copias(i);
     const preco = vendaView ? (Number(i.vPreco)||0) : (Number(i.valorMercado)||0);
     const foto = i.img
       ? `<img src="${esc(i.img)}" alt="${esc(i.nome||"")}" loading="lazy" onerror="this.remove()">`
@@ -799,7 +834,7 @@ function renderGrade(r, vendaView){
     const abre = souDono ? `data-edit="${i.id}"` : "";
     return `
       <button class="card" ${abre} title="${esc(i.nome||"")}">
-        <span class="ph">${foto}${q>1 ? `<span class="selo num">${q}×</span>` : ""}</span>
+        <span class="ph">${foto}${nc>1 ? `<span class="selo num rep">${nc}×</span>` : ""}</span>
         ${souDono ? `<span class="fx flag ${esc(i.balde||"giro")}"></span>` : ""}
         <span class="nm">${esc(i.nome||"Sem nome")}</span>
         <span class="cod">${esc(i.numero || i.set || "—")}</span>
@@ -831,6 +866,8 @@ function renderLista(lista, vendaView){
     if (i.gradEmpresa) chips.push('<span class="chip slab">'+esc(i.gradEmpresa)+" "+esc(i.gradNota||"")+"</span>");
     if (i.raridade && i.raridade !== "Comum") chips.push('<span class="chip">'+esc(i.raridade)+"</span>");
     if (!vendaView && velha(i)) chips.push('<span class="chip stale">cotação antiga</span>');
+    const nc = copias(i);
+    if (!vendaView && nc > 1) chips.push('<span class="chip rep">' + nc + ' cópias</span>');
 
     const thumb = i.img
       ? `<img class="thumb" src="${esc(i.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
@@ -1147,6 +1184,16 @@ function renderResumo(ativos, vendidos){
         <tr><td class="lbl">Faturamento bruto</td><td class="num">${money(bruto)}</td></tr>
         <tr><td class="lbl">Resultado líquido</td><td class="num ${lucroV>=0?"up-t":"down-t"}">${money(lucroV)}</td></tr>
       </table></div>
+      <div class="brk"><h3>Repetidas</h3><table>${(() => {
+        const vistos = new Set(); const linhas = [];
+        [...ativos].sort((a,b) => copias(b) - copias(a) || mercado(b) - mercado(a)).forEach(i => {
+          const k = chaveCarta(i), n = copias(i);
+          if (n < 2 || vistos.has(k)) return;
+          vistos.add(k);
+          linhas.push(`<tr><td class="lbl">${esc(i.nome||"—")} <span style="opacity:.6">${esc(i.numero||"")}</span></td><td class="num">${n}× · ${money((Number(i.valorMercado)||0)*(n-1))} em excedente</td></tr>`);
+        });
+        return linhas.length ? linhas.slice(0,10).join("") : '<tr><td class="lbl">Nenhuma carta repetida</td><td></td></tr>';
+      })()}</table></div>
       <div class="brk"><h3>Manutenção</h3><table>
         <tr><td class="lbl">Cotações com mais de ${VALIDADE_COTACAO} dias</td><td class="num">${velhas}</td></tr>
         <tr><td class="lbl">Sem local de guarda anotado</td><td class="num">${ativos.filter(i=>!i.local).length}</td></tr>
@@ -1429,7 +1476,7 @@ $("tabs").addEventListener("click", e => {
   [...$("tabs").children].forEach(x => x.setAttribute("aria-selected", x === b));
   render();
 });
-["busca","fIdioma","fBalde","fOrd","fSetF"].forEach(id => $(id).addEventListener("input", render));
+["busca","fIdioma","fBalde","fOrd","fSetF","fRep"].forEach(id => $(id).addEventListener("input", render));
 document.querySelector(".vista").addEventListener("click", e => {
   const b = e.target.closest("button[data-vista]"); if (!b) return;
   vista = b.dataset.vista;
